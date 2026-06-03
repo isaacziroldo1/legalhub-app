@@ -22,13 +22,29 @@ type DraggedTask = {
 
 export function KanbanView({ clientId, highlightTaskId }: Props) {
   const { tasks, updateTaskStatus } = useApp();
+  const [boardTasks, setBoardTasks] = useState<Task[]>(tasks);
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const updatingTaskIdsRef = useRef(new Set<string>());
+  const [pendingTaskMoves, setPendingTaskMoves] = useState(0);
+  const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
 
-  const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
+  useEffect(() => {
+    if (tasks.length > 0) {
+      setHasLoadedTasks(true);
+      setBoardTasks(tasks);
+      return;
+    }
+
+    setBoardTasks((current) => {
+      if (current.length > 0 && (pendingTaskMoves > 0 || hasLoadedTasks)) return current;
+      return tasks;
+    });
+  }, [hasLoadedTasks, pendingTaskMoves, tasks]);
+
+  const scopedTasks = useMemo(() => (clientId ? boardTasks.filter((task) => task.clientId === clientId) : boardTasks), [boardTasks, clientId]);
 
   const columns = useMemo<KanbanColumn[]>(
     () => [
@@ -101,6 +117,29 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     setDragOverStatus((current) => (current === status ? null : current));
   };
 
+  const moveTaskToStatus = async (task: Task, status: TaskStatus) => {
+    if (task.status === status) return;
+    if (updatingTaskIdsRef.current.has(task.id)) return;
+
+    updatingTaskIdsRef.current.add(task.id);
+    setUpdatingTaskId(task.id);
+    setDropError(null);
+    setPendingTaskMoves((current) => current + 1);
+    setBoardTasks((current) => current.map((item) => (item.id === task.id ? { ...item, status } : item)));
+
+    try {
+      await updateTaskStatus(task.id, status);
+    } catch (error) {
+      console.error(error);
+      setBoardTasks((current) => current.map((item) => (item.id === task.id ? task : item)));
+      setDropError("Não foi possível atualizar o status do prazo. Tente novamente.");
+    } finally {
+      updatingTaskIdsRef.current.delete(task.id);
+      setPendingTaskMoves((current) => Math.max(0, current - 1));
+      setUpdatingTaskId(null);
+    }
+  };
+
   const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
     event.preventDefault();
     event.stopPropagation();
@@ -111,21 +150,8 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
     const task = scopedTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
-    if (updatingTaskIdsRef.current.has(task.id)) return;
 
-    updatingTaskIdsRef.current.add(task.id);
-    setUpdatingTaskId(task.id);
-    setDropError(null);
-
-    try {
-      await updateTaskStatus(task.id, status);
-    } catch (error) {
-      console.error(error);
-      setDropError("Não foi possível atualizar o status do prazo. Tente novamente.");
-    } finally {
-      updatingTaskIdsRef.current.delete(task.id);
-      setUpdatingTaskId(null);
-    }
+    await moveTaskToStatus(task, status);
   };
 
   return (
@@ -184,10 +210,10 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">{task.responsible}</div>
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <button disabled={isUpdating} onClick={() => void updateTaskStatus(task.id, getPreviousStatus(task.status)).catch((error) => console.error(error))} className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50">
+                      <button disabled={isUpdating} onClick={() => void moveTaskToStatus(task, getPreviousStatus(task.status))} className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50">
                         Voltar
                       </button>
-                      <button disabled={isUpdating} onClick={() => void updateTaskStatus(task.id, getNextStatus(task.status)).catch((error) => console.error(error))} className="text-[10px] font-bold text-orange-500 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
+                      <button disabled={isUpdating} onClick={() => void moveTaskToStatus(task, getNextStatus(task.status))} className="text-[10px] font-bold text-orange-500 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
                         Avançar
                       </button>
                     </div>
