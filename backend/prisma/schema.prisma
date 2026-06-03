@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Client {
+  id           String    @id @default(cuid())
+  name         String
+  cnpj         String    @unique
+  status       String
+  responsible  String
+  email        String
+  phone        String
+  address      String
+  city         String
+  observations String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tasks        Task[]
+  documents    Document[]
+
+  @@index([status])
+  @@map("clients")
+}
+
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  clientId     String
+  clientName   String
+  dueDate      DateTime
+  status       String
+  priority     String
+  responsible  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([status])
+  @@index([priority])
+  @@map("tasks")
+}
+
+model Document {
+  id               String   @id @default(cuid())
+  name             String
+  category         String
+  tags             String
+  variables        String
+  autoMappedFields String?
+  clientId         String?
+  uploadedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  client           Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@map("documents")
+}
+
+model AppSetting {
+  id                 String   @id
+  isSmartScanEnabled Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("app_settings")
+}
