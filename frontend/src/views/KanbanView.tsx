@@ -21,6 +21,12 @@ type DraggedTask = {
   status: TaskStatus;
 };
 
+const TASK_STATUSES: TaskStatus[] = ["todo", "drafting", "review", "done"];
+
+function isTaskStatus(value: string | undefined): value is TaskStatus {
+  return TASK_STATUSES.some((status) => status === value);
+}
+
 export function KanbanView({ clientId, highlightTaskId }: Props) {
   const { tasks, updateTaskStatus } = useApp();
   const [optimisticTasks, setOptimisticTasks] = useState(tasks);
@@ -29,6 +35,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const updatingTaskIdsRef = useRef(new Set<string>());
+  const dropHandledRef = useRef(false);
 
   useEffect(() => {
     setOptimisticTasks(tasks);
@@ -86,6 +93,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   }, [highlightTaskId, scopedTasks]);
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>, task: Task) => {
+    dropHandledRef.current = false;
     setDraggedTask({ id: task.id, status: task.status });
     setDropError(null);
     event.dataTransfer.effectAllowed = "move";
@@ -107,14 +115,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     setDragOverStatus((current) => (current === status ? null : current));
   };
 
-  const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const taskId = event.dataTransfer.getData("application/x-legalhub-task-id") || event.dataTransfer.getData("text/plain") || draggedTask?.id;
-
-    setDraggedTask(null);
-    setDragOverStatus(null);
-
+  const moveTaskToStatus = async (taskId: string | undefined, status: TaskStatus) => {
     const task = scopedTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
     if (updatingTaskIdsRef.current.has(task.id)) return;
@@ -134,6 +135,32 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
       updatingTaskIdsRef.current.delete(task.id);
       setUpdatingTaskId(null);
     }
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dropHandledRef.current = true;
+    const taskId = event.dataTransfer.getData("application/x-legalhub-task-id") || event.dataTransfer.getData("text/plain") || draggedTask?.id;
+
+    setDraggedTask(null);
+    setDragOverStatus(null);
+
+    await moveTaskToStatus(taskId, status);
+  };
+
+  const handleDragEnd = (event: DragEvent<HTMLDivElement>) => {
+    const shouldUseFallback = !dropHandledRef.current;
+    const taskId = draggedTask?.id;
+    dropHandledRef.current = false;
+    setDraggedTask(null);
+    setDragOverStatus(null);
+
+    if (!shouldUseFallback || !taskId) return;
+
+    const dropTarget = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-task-status]");
+    const status = dropTarget instanceof HTMLElement ? dropTarget.dataset.taskStatus : undefined;
+    if (isTaskStatus(status)) void moveTaskToStatus(taskId, status);
   };
 
   return (
@@ -174,10 +201,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                     data-task-id={task.id}
                     draggable={!isUpdating}
                     onDragStart={(event) => handleDragStart(event, task)}
-                    onDragEnd={() => {
-                      setDraggedTask(null);
-                      setDragOverStatus(null);
-                    }}
+                    onDragEnd={handleDragEnd}
                     className={`flex cursor-grab flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition active:cursor-grabbing ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging || isUpdating ? "opacity-50" : ""}`}
                   >
                     <span className="text-xs font-bold leading-tight text-zinc-900">{task.title}</span>
