@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useApp } from "@/context/AppContext";
+import { updateTaskStatusInList } from "@/context/task-state";
 import type { Task, TaskStatus } from "@/types";
 
 type Props = {
@@ -22,13 +23,18 @@ type DraggedTask = {
 
 export function KanbanView({ clientId, highlightTaskId }: Props) {
   const { tasks, updateTaskStatus } = useApp();
+  const [optimisticTasks, setOptimisticTasks] = useState(tasks);
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const updatingTaskIdsRef = useRef(new Set<string>());
 
-  const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
+  useEffect(() => {
+    setOptimisticTasks(tasks);
+  }, [tasks]);
+
+  const scopedTasks = useMemo(() => (clientId ? optimisticTasks.filter((task) => task.clientId === clientId) : optimisticTasks), [clientId, optimisticTasks]);
 
   const columns = useMemo<KanbanColumn[]>(
     () => [
@@ -116,11 +122,13 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     updatingTaskIdsRef.current.add(task.id);
     setUpdatingTaskId(task.id);
     setDropError(null);
+    setOptimisticTasks((current) => updateTaskStatusInList(current, task.id, status).tasks);
 
     try {
       await updateTaskStatus(task.id, status);
     } catch (error) {
       console.error(error);
+      setOptimisticTasks((current) => updateTaskStatusInList(current, task.id, task.status).tasks);
       setDropError("Não foi possível atualizar o status do prazo. Tente novamente.");
     } finally {
       updatingTaskIdsRef.current.delete(task.id);
