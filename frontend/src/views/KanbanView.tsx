@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useApp } from "@/context/AppContext";
 import type { Task, TaskStatus } from "@/types";
 
@@ -26,6 +26,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  const updatingTaskIdsRef = useRef(new Set<string>());
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
 
@@ -102,6 +103,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
   const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
     event.preventDefault();
+    event.stopPropagation();
     const taskId = event.dataTransfer.getData("application/x-legalhub-task-id") || event.dataTransfer.getData("text/plain") || draggedTask?.id;
 
     setDraggedTask(null);
@@ -109,7 +111,9 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
     const task = scopedTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
+    if (updatingTaskIdsRef.current.has(task.id)) return;
 
+    updatingTaskIdsRef.current.add(task.id);
     setUpdatingTaskId(task.id);
     setDropError(null);
 
@@ -119,6 +123,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
       console.error(error);
       setDropError("Não foi possível atualizar o status do prazo. Tente novamente.");
     } finally {
+      updatingTaskIdsRef.current.delete(task.id);
       setUpdatingTaskId(null);
     }
   };
