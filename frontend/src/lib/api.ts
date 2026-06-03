@@ -106,11 +106,15 @@ export async function deleteClientRequest(token: string, id: string) {
 }
 
 export async function createTaskRequest(token: string, task: Omit<Task, "id" | "createdAt" | "completedAt">) {
-  return requestJson<Task>("/tasks", { token, method: "POST", body: task });
+  const createdTask = await requestJson<Task & { completedAt?: string | null }>("/tasks", { token, method: "POST", body: task });
+
+  return normalizeTask(createdTask);
 }
 
 export async function updateTaskRequest(token: string, id: string, patch: Partial<Omit<Task, "id">>) {
-  return requestJson<Task>(`/tasks/${id}`, { token, method: "PATCH", body: patch });
+  const updatedTask = await requestJson<Task & { completedAt?: string | null }>(`/tasks/${id}`, { token, method: "PATCH", body: patch });
+
+  return normalizeTask(updatedTask);
 }
 
 export async function deleteTaskRequest(token: string, id: string) {

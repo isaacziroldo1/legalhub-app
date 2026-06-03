@@ -105,8 +105,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateTaskStatus = async (id: string, status: Task["status"]) => {
     if (!session) throw new Error("Sessão indisponível");
-    await updateTaskRequest(session.token, id, { status });
-    await refreshState();
+
+    const previousTask = state.tasks.find((task) => task.id === id);
+    if (!previousTask) throw new Error("Prazo não encontrado");
+    if (previousTask.status === status) return;
+
+    setState((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) => (task.id === id ? { ...task, status } : task)),
+    }));
+
+    try {
+      const updatedTask = await updateTaskRequest(session.token, id, { status });
+      setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => (task.id === id ? updatedTask : task)),
+      }));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => (task.id === id ? previousTask : task)),
+      }));
+      throw error;
+    }
   };
 
   const addDocument = async (doc: Omit<DocumentItem, "id" | "uploadedAt">) => {
