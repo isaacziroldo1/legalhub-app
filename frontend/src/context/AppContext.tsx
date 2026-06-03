@@ -24,6 +24,24 @@ const EMPTY_STATE: AppState = {
   settings: { isSmartScanEnabled: false },
 };
 
+function replaceTaskById(tasks: Task[], updatedTask: Task) {
+  let replaced = false;
+
+  return tasks.reduce<Task[]>((nextTasks, task) => {
+    if (task.id !== updatedTask.id) {
+      nextTasks.push(task);
+      return nextTasks;
+    }
+
+    if (!replaced) {
+      nextTasks.push(updatedTask);
+      replaced = true;
+    }
+
+    return nextTasks;
+  }, []);
+}
+
 interface AppContextType extends AppState {
   loading: boolean;
   toggleSmartScan: () => Promise<void>;
@@ -107,25 +125,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!session) throw new Error("Sessão indisponível");
 
     const previousTask = state.tasks.find((task) => task.id === id);
-    if (!previousTask) throw new Error("Prazo não encontrado");
-    if (previousTask.status === status) return;
+    if (previousTask?.status === status) return;
 
-    setState((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) => (task.id === id ? { ...task, status } : task)),
-    }));
+    if (previousTask) {
+      setState((current) => ({
+        ...current,
+        tasks: replaceTaskById(current.tasks, { ...previousTask, status }),
+      }));
+    }
 
     try {
       const updatedTask = await updateTaskRequest(session.token, id, { status });
       setState((current) => ({
         ...current,
-        tasks: current.tasks.map((task) => (task.id === id ? updatedTask : task)),
+        tasks: replaceTaskById(current.tasks, updatedTask),
       }));
     } catch (error) {
-      setState((current) => ({
-        ...current,
-        tasks: current.tasks.map((task) => (task.id === id ? previousTask : task)),
-      }));
+      if (previousTask) {
+        setState((current) => ({
+          ...current,
+          tasks: replaceTaskById(current.tasks, previousTask),
+        }));
+      }
+
       throw error;
     }
   };
