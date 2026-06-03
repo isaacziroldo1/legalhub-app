@@ -24,6 +24,24 @@ const EMPTY_STATE: AppState = {
   settings: { isSmartScanEnabled: false },
 };
 
+function replaceTaskById(tasks: Task[], updatedTask: Task) {
+  let replaced = false;
+
+  return tasks.reduce<Task[]>((nextTasks, task) => {
+    if (task.id !== updatedTask.id) {
+      nextTasks.push(task);
+      return nextTasks;
+    }
+
+    if (!replaced) {
+      nextTasks.push(updatedTask);
+      replaced = true;
+    }
+
+    return nextTasks;
+  }, []);
+}
+
 interface AppContextType extends AppState {
   loading: boolean;
   toggleSmartScan: () => Promise<void>;
@@ -105,8 +123,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateTaskStatus = async (id: string, status: Task["status"]) => {
     if (!session) throw new Error("Sessão indisponível");
-    await updateTaskRequest(session.token, id, { status });
-    await refreshState();
+
+    const previousTask = state.tasks.find((task) => task.id === id);
+    if (previousTask?.status === status) return;
+
+    if (previousTask) {
+      setState((current) => ({
+        ...current,
+        tasks: replaceTaskById(current.tasks, { ...previousTask, status }),
+      }));
+    }
+
+    try {
+      const updatedTask = await updateTaskRequest(session.token, id, { status });
+      setState((current) => ({
+        ...current,
+        tasks: replaceTaskById(current.tasks, updatedTask),
+      }));
+    } catch (error) {
+      if (previousTask) {
+        setState((current) => ({
+          ...current,
+          tasks: replaceTaskById(current.tasks, previousTask),
+        }));
+      }
+
+      throw error;
+    }
   };
 
   const addDocument = async (doc: Omit<DocumentItem, "id" | "uploadedAt">) => {
