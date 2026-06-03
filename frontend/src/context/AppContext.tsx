@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { AppState, Client, DocumentItem, Task } from "@/types";
 import { useAuth } from "@/auth/useAuth";
+import { replaceTaskById } from "./taskState";
 import {
   createClientRequest,
   createDocumentRequest,
@@ -23,24 +24,6 @@ const EMPTY_STATE: AppState = {
   documents: [],
   settings: { isSmartScanEnabled: false },
 };
-
-function replaceTaskById(tasks: Task[], updatedTask: Task) {
-  let replaced = false;
-
-  return tasks.reduce<Task[]>((nextTasks, task) => {
-    if (task.id !== updatedTask.id) {
-      nextTasks.push(task);
-      return nextTasks;
-    }
-
-    if (!replaced) {
-      nextTasks.push(updatedTask);
-      replaced = true;
-    }
-
-    return nextTasks;
-  }, []);
-}
 
 interface AppContextType extends AppState {
   loading: boolean;
