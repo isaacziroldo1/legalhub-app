@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { useApp } from "@/context/AppContext";
 import type { Task, TaskStatus } from "@/types";
 import { buildKanbanColumns, getNextStatus, getPreviousStatus, getTaskStatusFromElement } from "./kanbanUtils";
@@ -23,6 +23,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const [dropError, setDropError] = useState<string | null>(null);
   const handledDropTaskIdRef = useRef<string | null>(null);
   const lastDragOverStatusRef = useRef<TaskStatus | null>(null);
+  const mouseDraggedTaskRef = useRef<Task | null>(null);
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
 
@@ -77,6 +78,13 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     setDragOverStatus((current) => (current === status ? null : current));
   };
 
+  const markDropHandled = (taskId: string) => {
+    handledDropTaskIdRef.current = taskId;
+    window.setTimeout(() => {
+      if (handledDropTaskIdRef.current === taskId) handledDropTaskIdRef.current = null;
+    }, 250);
+  };
+
   const moveTaskToStatus = async (task: Task, status: TaskStatus) => {
     setUpdatingTaskId(task.id);
     setDropError(null);
@@ -101,8 +109,9 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
     const task = scopedTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
+    if (handledDropTaskIdRef.current === task.id) return;
 
-    handledDropTaskIdRef.current = task.id;
+    markDropHandled(task.id);
 
     await moveTaskToStatus(task, status);
   };
@@ -125,6 +134,34 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     await moveTaskToStatus(task, targetStatus);
   };
 
+  const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
+    if (event.button !== 0) return;
+    if (event.target instanceof Element && event.target.closest("button")) return;
+
+    mouseDraggedTaskRef.current = task;
+    lastDragOverStatusRef.current = null;
+  };
+
+  const handleMouseOverColumn = (status: TaskStatus) => {
+    const task = mouseDraggedTaskRef.current;
+    if (!task) return;
+
+    lastDragOverStatusRef.current = task.status === status ? null : status;
+  };
+
+  const handleMouseUp = async (event: ReactMouseEvent<HTMLDivElement>, status: TaskStatus) => {
+    const task = mouseDraggedTaskRef.current;
+    mouseDraggedTaskRef.current = null;
+    if (!task || handledDropTaskIdRef.current === task.id) return;
+
+    const targetStatus = getTaskStatusFromElement(document.elementFromPoint(event.clientX, event.clientY)) ?? lastDragOverStatusRef.current ?? status;
+    lastDragOverStatusRef.current = null;
+    if (targetStatus === task.status) return;
+
+    markDropHandled(task.id);
+    await moveTaskToStatus(task, targetStatus);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -144,6 +181,8 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
             onDragOver={(event) => handleDragOver(event, column.key)}
             onDragLeave={(event) => handleDragLeave(event, column.key)}
             onDrop={(event) => void handleDrop(event, column.key)}
+            onMouseMove={() => handleMouseOverColumn(column.key)}
+            onMouseUp={(event) => void handleMouseUp(event, column.key)}
             className={`flex min-h-48 flex-col gap-4 rounded-xl border p-4 transition ${dragOverStatus === column.key ? "border-orange-400 bg-orange-50" : "border-zinc-200 bg-zinc-50"}`}
           >
             <div className="flex items-center justify-between px-1">
@@ -162,6 +201,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                     aria-grabbed={isDragging}
                     data-task-id={task.id}
                     draggable={!isUpdating}
+                    onMouseDown={(event) => handleMouseDown(event, task)}
                     onDragStart={(event) => handleDragStart(event, task)}
                     onDragEnd={(event) => void handleDragEnd(event, task)}
                     className={`flex cursor-grab flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition active:cursor-grabbing ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging || isUpdating ? "opacity-50" : ""}`}
