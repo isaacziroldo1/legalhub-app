@@ -74,7 +74,6 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     const nextTarget = event.relatedTarget;
     if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
 
-    lastDragOverStatusRef.current = null;
     setDragOverStatus((current) => (current === status ? null : current));
   };
 
