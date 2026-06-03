@@ -15,10 +15,17 @@ type KanbanColumn = {
   tasksList: Task[];
 };
 
+type DraggedTask = {
+  id: string;
+  status: TaskStatus;
+};
+
 export function KanbanView({ clientId, highlightTaskId }: Props) {
   const { tasks, updateTaskStatus } = useApp();
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
 
@@ -71,16 +78,19 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [highlightTaskId, scopedTasks]);
 
-  const handleDragStart = (event: DragEvent<HTMLDivElement>, taskId: string) => {
-    setDraggedTaskId(taskId);
+  const handleDragStart = (event: DragEvent<HTMLDivElement>, task: Task) => {
+    setDraggedTask({ id: task.id, status: task.status });
+    setDropError(null);
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", taskId);
+    event.dataTransfer.setData("application/x-legalhub-task-id", task.id);
+    event.dataTransfer.setData("text/plain", task.id);
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
+    const isSameColumn = draggedTask?.status === status;
     event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    setDragOverStatus(status);
+    event.dataTransfer.dropEffect = isSameColumn ? "none" : "move";
+    setDragOverStatus(isSameColumn ? null : status);
   };
 
   const handleDragLeave = (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
@@ -92,18 +102,24 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
   const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
     event.preventDefault();
-    const taskId = event.dataTransfer.getData("text/plain") || draggedTaskId;
+    const taskId = event.dataTransfer.getData("application/x-legalhub-task-id") || event.dataTransfer.getData("text/plain") || draggedTask?.id;
 
-    setDraggedTaskId(null);
+    setDraggedTask(null);
     setDragOverStatus(null);
 
     const task = scopedTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
 
+    setUpdatingTaskId(task.id);
+    setDropError(null);
+
     try {
       await updateTaskStatus(task.id, status);
     } catch (error) {
       console.error(error);
+      setDropError("Não foi possível atualizar o status do prazo. Tente novamente.");
+    } finally {
+      setUpdatingTaskId(null);
     }
   };
 
@@ -114,12 +130,15 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
         <p className="text-sm text-zinc-500">
           Acompanhe prazos com base em estado e data real de vencimento{clientId ? " para este cliente." : "."} Arraste um prazo entre colunas para atualizar seu status.
         </p>
+        {dropError && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{dropError}</div>}
       </div>
 
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-4">
         {columns.map((column) => (
           <div
             key={column.key}
+            aria-label={`Coluna ${column.name}`}
+            data-task-status={column.key}
             onDragOver={(event) => handleDragOver(event, column.key)}
             onDragLeave={(event) => handleDragLeave(event, column.key)}
             onDrop={(event) => void handleDrop(event, column.key)}
@@ -131,19 +150,22 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
             </div>
             <div className="flex flex-col gap-3">
               {column.tasksList.map((task) => {
-                const isDragging = draggedTaskId === task.id;
+                const isDragging = draggedTask?.id === task.id;
+                const isUpdating = updatingTaskId === task.id;
 
                 return (
                   <div
                     key={task.id}
                     id={`task-${task.id}`}
-                    draggable
-                    onDragStart={(event) => handleDragStart(event, task.id)}
+                    aria-grabbed={isDragging}
+                    data-task-id={task.id}
+                    draggable={!isUpdating}
+                    onDragStart={(event) => handleDragStart(event, task)}
                     onDragEnd={() => {
-                      setDraggedTaskId(null);
+                      setDraggedTask(null);
                       setDragOverStatus(null);
                     }}
-                    className={`flex cursor-grab flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition active:cursor-grabbing ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging ? "opacity-50" : ""}`}
+                    className={`flex cursor-grab flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition active:cursor-grabbing ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging || isUpdating ? "opacity-50" : ""}`}
                   >
                     <span className="text-xs font-bold leading-tight text-zinc-900">{task.title}</span>
                     <div className="flex items-center gap-1.5">
@@ -157,11 +179,11 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">{task.responsible}</div>
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <button onClick={() => void updateTaskStatus(task.id, getPreviousStatus(task.status)).catch((error) => console.error(error))} className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900">
+                      <button disabled={isUpdating} onClick={() => void updateTaskStatus(task.id, getPreviousStatus(task.status)).catch((error) => console.error(error))} className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50">
                         Voltar
                       </button>
-                      <button onClick={() => void updateTaskStatus(task.id, getNextStatus(task.status)).catch((error) => console.error(error))} className="text-[10px] font-bold text-orange-500 hover:text-orange-600">
-                        Avancar
+                      <button disabled={isUpdating} onClick={() => void updateTaskStatus(task.id, getNextStatus(task.status)).catch((error) => console.error(error))} className="text-[10px] font-bold text-orange-500 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
+                        Avançar
                       </button>
                     </div>
                   </div>
