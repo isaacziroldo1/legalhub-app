@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AppState, Client, DocumentItem, Task } from "@/types";
 import { useAuth } from "@/auth/useAuth";
 import {
@@ -60,12 +60,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { session, loading: authLoading } = useAuth();
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
+  const stateRef = useRef(state);
+
+  const applyState = (nextState: React.SetStateAction<AppState>) => {
+    setState((currentState) => {
+      const resolvedState = typeof nextState === "function" ? (nextState as (currentState: AppState) => AppState)(currentState) : nextState;
+      stateRef.current = resolvedState;
+      return resolvedState;
+    });
+  };
 
   useEffect(() => {
     if (authLoading) return;
 
     if (!session) {
-      setState(EMPTY_STATE);
+      applyState(EMPTY_STATE);
       setLoading(false);
       return;
     }
@@ -75,12 +84,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     loadAppStateRequest(session.token)
       .then((data) => {
-        if (active) setState(data);
+        if (active) applyState(data);
       })
       .catch((error) => {
         if (active) {
           console.error(error);
-          setState(EMPTY_STATE);
         }
       })
       .finally(() => {
@@ -94,7 +102,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshState = async () => {
     if (!session) throw new Error("Sessão indisponível");
-    setState(await loadAppStateRequest(session.token));
+    applyState(await loadAppStateRequest(session.token));
   };
 
   const addClient = async (client: Omit<Client, "id" | "createdAt">) => {
@@ -124,11 +132,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateTaskStatus = async (id: string, status: Task["status"]) => {
     if (!session) throw new Error("Sessão indisponível");
 
-    const previousTask = state.tasks.find((task) => task.id === id);
+    const previousTask = stateRef.current.tasks.find((task) => task.id === id);
     if (previousTask?.status === status) return;
 
     if (previousTask) {
-      setState((current) => ({
+      applyState((current) => ({
         ...current,
         tasks: replaceTaskById(current.tasks, { ...previousTask, status }),
       }));
@@ -136,13 +144,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const updatedTask = await updateTaskRequest(session.token, id, { status });
-      setState((current) => ({
+      applyState((current) => ({
         ...current,
         tasks: replaceTaskById(current.tasks, updatedTask),
       }));
     } catch (error) {
       if (previousTask) {
-        setState((current) => ({
+        applyState((current) => ({
           ...current,
           tasks: replaceTaskById(current.tasks, previousTask),
         }));

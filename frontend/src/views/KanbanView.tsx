@@ -3,16 +3,11 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useApp } from "@/context/AppContext";
 import type { Task, TaskStatus } from "@/types";
+import { buildKanbanColumns, moveTaskToStatus } from "./kanbanUtils";
 
 type Props = {
   clientId?: string;
   highlightTaskId?: string;
-};
-
-type KanbanColumn = {
-  key: TaskStatus;
-  name: string;
-  tasksList: Task[];
 };
 
 type DraggedTask = {
@@ -29,16 +24,9 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const updatingTaskIdsRef = useRef(new Set<string>());
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
+  const [visibleTasks, setVisibleTasks] = useState<Task[]>(scopedTasks);
 
-  const columns = useMemo<KanbanColumn[]>(
-    () => [
-      { key: "todo", name: "A Fazer", tasksList: scopedTasks.filter((task) => task.status === "todo") },
-      { key: "drafting", name: "Em Redação", tasksList: scopedTasks.filter((task) => task.status === "drafting") },
-      { key: "review", name: "Revisão Interna", tasksList: scopedTasks.filter((task) => task.status === "review") },
-      { key: "done", name: "Protocolado/Concluído", tasksList: scopedTasks.filter((task) => task.status === "done") },
-    ],
-    [scopedTasks]
-  );
+  const columns = useMemo(() => buildKanbanColumns(visibleTasks), [visibleTasks]);
 
   const getNextStatus = (status: TaskStatus): TaskStatus => {
     if (status === "todo") return "drafting";
@@ -79,6 +67,18 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [highlightTaskId, scopedTasks]);
 
+  useEffect(() => {
+    const hasPendingMove = Boolean(draggedTask || updatingTaskId);
+
+    setVisibleTasks((currentTasks) => {
+      if (hasPendingMove && scopedTasks.length === 0 && currentTasks.length > 0) {
+        return currentTasks;
+      }
+
+      return scopedTasks;
+    });
+  }, [draggedTask, scopedTasks, updatingTaskId]);
+
   const handleDragStart = (event: DragEvent<HTMLDivElement>, task: Task) => {
     setDraggedTask({ id: task.id, status: task.status });
     setDropError(null);
@@ -116,12 +116,14 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     updatingTaskIdsRef.current.add(task.id);
     setUpdatingTaskId(task.id);
     setDropError(null);
+    setVisibleTasks((currentTasks) => moveTaskToStatus(currentTasks, task.id, status));
 
     try {
       await updateTaskStatus(task.id, status);
     } catch (error) {
       console.error(error);
       setDropError("Não foi possível atualizar o status do prazo. Tente novamente.");
+      setVisibleTasks((currentTasks) => moveTaskToStatus(currentTasks, task.id, task.status));
     } finally {
       updatingTaskIdsRef.current.delete(task.id);
       setUpdatingTaskId(null);
