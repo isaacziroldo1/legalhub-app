@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AppState, Client, DocumentItem, Task } from "@/types";
 import { useAuth } from "@/auth/useAuth";
 import {
@@ -60,6 +60,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { session, loading: authLoading } = useAuth();
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -80,7 +85,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .catch((error) => {
         if (active) {
           console.error(error);
-          setState(EMPTY_STATE);
         }
       })
       .finally(() => {
@@ -124,8 +128,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateTaskStatus = async (id: string, status: Task["status"]) => {
     if (!session) throw new Error("Sessão indisponível");
 
-    const previousTask = state.tasks.find((task) => task.id === id);
-    if (previousTask?.status === status) return;
+    const previousTask = stateRef.current.tasks.find((task) => task.id === id);
+    if (!previousTask) throw new Error("Prazo não encontrado");
+    if (previousTask.status === status) return;
 
     if (previousTask) {
       setState((current) => ({
