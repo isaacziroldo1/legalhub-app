@@ -22,6 +22,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const handledDropTaskIdRef = useRef<string | null>(null);
+  const lastDragOverStatusRef = useRef<TaskStatus | null>(null);
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
 
@@ -54,6 +55,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>, task: Task) => {
     setDraggedTask({ id: task.id, status: task.status });
+    lastDragOverStatusRef.current = null;
     setDropError(null);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("application/x-legalhub-task-id", task.id);
@@ -64,6 +66,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     const isSameColumn = draggedTask?.status === status;
     event.preventDefault();
     event.dataTransfer.dropEffect = isSameColumn ? "none" : "move";
+    lastDragOverStatusRef.current = isSameColumn ? null : status;
     setDragOverStatus(isSameColumn ? null : status);
   };
 
@@ -71,6 +74,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     const nextTarget = event.relatedTarget;
     if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
 
+    lastDragOverStatusRef.current = null;
     setDragOverStatus((current) => (current === status ? null : current));
   };
 
@@ -94,6 +98,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
     setDraggedTask(null);
     setDragOverStatus(null);
+    lastDragOverStatusRef.current = null;
 
     const task = scopedTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
@@ -109,10 +114,13 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
     if (handledDropTaskIdRef.current === task.id) {
       handledDropTaskIdRef.current = null;
+      lastDragOverStatusRef.current = null;
       return;
     }
 
-    const targetStatus = getTaskStatusFromElement(document.elementFromPoint(event.clientX, event.clientY));
+    const elementTargetStatus = getTaskStatusFromElement(document.elementFromPoint(event.clientX, event.clientY));
+    const targetStatus = elementTargetStatus ?? lastDragOverStatusRef.current;
+    lastDragOverStatusRef.current = null;
     if (!targetStatus || targetStatus === task.status) return;
 
     await moveTaskToStatus(task, targetStatus);
