@@ -16,6 +16,7 @@ import {
   updateSettingsRequest,
   updateTaskRequest,
 } from "@/lib/api";
+import { replaceTaskById, updateTaskStatusInList } from "./task-state";
 
 const EMPTY_STATE: AppState = {
   clients: [],
@@ -23,24 +24,6 @@ const EMPTY_STATE: AppState = {
   documents: [],
   settings: { isSmartScanEnabled: false },
 };
-
-function replaceTaskById(tasks: Task[], updatedTask: Task) {
-  let replaced = false;
-
-  return tasks.reduce<Task[]>((nextTasks, task) => {
-    if (task.id !== updatedTask.id) {
-      nextTasks.push(task);
-      return nextTasks;
-    }
-
-    if (!replaced) {
-      nextTasks.push(updatedTask);
-      replaced = true;
-    }
-
-    return nextTasks;
-  }, []);
-}
 
 interface AppContextType extends AppState {
   loading: boolean;
@@ -130,7 +113,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (previousTask) {
       setState((current) => ({
         ...current,
-        tasks: replaceTaskById(current.tasks, { ...previousTask, status }),
+        tasks: updateTaskStatusInList(current.tasks, id, status).tasks,
       }));
     }
 
