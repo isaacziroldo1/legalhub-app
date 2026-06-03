@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useApp } from "@/context/AppContext";
 import type { Task, TaskStatus } from "@/types";
+import { buildKanbanColumns, getNextStatus, getPreviousStatus, getTaskStatusFromElement } from "./kanbanUtils";
 
 type Props = {
   clientId?: string;
   highlightTaskId?: string;
-};
-
-type KanbanColumn = {
-  key: TaskStatus;
-  name: string;
-  tasksList: Task[];
 };
 
 type DraggedTask = {
@@ -26,32 +21,11 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  const handledDropTaskIdRef = useRef<string | null>(null);
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
 
-  const columns = useMemo<KanbanColumn[]>(
-    () => [
-      { key: "todo", name: "A Fazer", tasksList: scopedTasks.filter((task) => task.status === "todo") },
-      { key: "drafting", name: "Em Redação", tasksList: scopedTasks.filter((task) => task.status === "drafting") },
-      { key: "review", name: "Revisão Interna", tasksList: scopedTasks.filter((task) => task.status === "review") },
-      { key: "done", name: "Protocolado/Concluído", tasksList: scopedTasks.filter((task) => task.status === "done") },
-    ],
-    [scopedTasks]
-  );
-
-  const getNextStatus = (status: TaskStatus): TaskStatus => {
-    if (status === "todo") return "drafting";
-    if (status === "drafting") return "review";
-    if (status === "review") return "done";
-    return "done";
-  };
-
-  const getPreviousStatus = (status: TaskStatus): TaskStatus => {
-    if (status === "done") return "review";
-    if (status === "review") return "drafting";
-    if (status === "drafting") return "todo";
-    return "todo";
-  };
+  const columns = useMemo(() => buildKanbanColumns(scopedTasks), [scopedTasks]);
 
   const formatDeadline = (value: string) => {
     const diff = Math.ceil((new Date(value).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -100,16 +74,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     setDragOverStatus((current) => (current === status ? null : current));
   };
 
-  const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
-    event.preventDefault();
-    const taskId = event.dataTransfer.getData("application/x-legalhub-task-id") || event.dataTransfer.getData("text/plain") || draggedTask?.id;
-
-    setDraggedTask(null);
-    setDragOverStatus(null);
-
-    const task = scopedTasks.find((item) => item.id === taskId);
-    if (!task || task.status === status) return;
-
+  const moveTaskToStatus = async (task: Task, status: TaskStatus) => {
     setUpdatingTaskId(task.id);
     setDropError(null);
 
@@ -121,6 +86,36 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     } finally {
       setUpdatingTaskId(null);
     }
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
+    event.preventDefault();
+    const taskId = event.dataTransfer.getData("application/x-legalhub-task-id") || event.dataTransfer.getData("text/plain") || draggedTask?.id;
+
+    setDraggedTask(null);
+    setDragOverStatus(null);
+
+    const task = scopedTasks.find((item) => item.id === taskId);
+    if (!task || task.status === status) return;
+
+    handledDropTaskIdRef.current = task.id;
+
+    await moveTaskToStatus(task, status);
+  };
+
+  const handleDragEnd = async (event: DragEvent<HTMLDivElement>, task: Task) => {
+    setDraggedTask(null);
+    setDragOverStatus(null);
+
+    if (handledDropTaskIdRef.current === task.id) {
+      handledDropTaskIdRef.current = null;
+      return;
+    }
+
+    const targetStatus = getTaskStatusFromElement(document.elementFromPoint(event.clientX, event.clientY));
+    if (!targetStatus || targetStatus === task.status) return;
+
+    await moveTaskToStatus(task, targetStatus);
   };
 
   return (
@@ -161,10 +156,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                     data-task-id={task.id}
                     draggable={!isUpdating}
                     onDragStart={(event) => handleDragStart(event, task)}
-                    onDragEnd={() => {
-                      setDraggedTask(null);
-                      setDragOverStatus(null);
-                    }}
+                    onDragEnd={(event) => void handleDragEnd(event, task)}
                     className={`flex cursor-grab flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition active:cursor-grabbing ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging || isUpdating ? "opacity-50" : ""}`}
                   >
                     <span className="text-xs font-bold leading-tight text-zinc-900">{task.title}</span>
