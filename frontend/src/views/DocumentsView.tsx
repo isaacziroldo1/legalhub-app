@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/context/AppContext";
 
@@ -57,8 +58,30 @@ export function DocumentsView({ clientId, highlightDocId }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [highlightDocId, scopedDocuments, filteredDocuments]);
 
+  const listTitle =
+    selectedCategory === "all" ? "Todos os documentos" : selectedCategory;
+
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
+    <div className="flex flex-col gap-6">
+      {clientId && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-extrabold text-zinc-950">Documentos do cliente</h2>
+            <p className="text-sm text-zinc-500">
+              {filteredDocuments.length} documento{filteredDocuments.length === 1 ? "" : "s"} vinculado
+              {filteredDocuments.length === 1 ? "" : "s"} a este cliente. Use a busca e as categorias para filtrar os arquivos.
+            </p>
+          </div>
+          <Link
+            href={`/clientes/${clientId}/prontuario`}
+            className="shrink-0 text-xs font-bold text-orange-500 hover:text-orange-600 hover:underline"
+          >
+            Voltar ao prontuário
+          </Link>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6 lg:flex-row">
       <aside className="h-fit w-full rounded-xl border border-zinc-200 bg-zinc-100 p-4 lg:w-64">
         <span className="text-sm font-bold text-zinc-800">Categorias</span>
         <nav className="mt-4 flex flex-col gap-1">
@@ -76,13 +99,17 @@ export function DocumentsView({ clientId, highlightDocId }: Props) {
 
       <div className="flex-1">
         <div className="mb-4 flex flex-col gap-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Documentos &gt; Biblioteca Dinamica</span>
-          <h2 className="text-xl font-bold text-zinc-900">{selectedCategory === "all" ? "Todos os documentos" : selectedCategory} ({filteredDocuments.length} documentos)</h2>
+          {!clientId && (
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Documentos &gt; Biblioteca Dinamica</span>
+          )}
+          <h2 className="text-xl font-bold text-zinc-900">
+            {listTitle} ({filteredDocuments.length} documentos)
+          </h2>
         </div>
 
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar documento ou tag" className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none focus:border-orange-500 md:max-w-md" />
-          <div className="text-xs text-zinc-500">Clientes vinculados: {clientId ? 1 : clients.length}</div>
+          {!clientId && <div className="text-xs text-zinc-500">Clientes vinculados: {clients.length}</div>}
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -114,6 +141,7 @@ export function DocumentsView({ clientId, highlightDocId }: Props) {
           ))}
         </div>
         {filteredDocuments.length === 0 && <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">Nenhum documento encontrado com os filtros atuais.</div>}
+      </div>
       </div>
     </div>
   );

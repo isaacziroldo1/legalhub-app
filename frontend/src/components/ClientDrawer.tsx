@@ -179,7 +179,8 @@ export function ClientDrawer({ client, onClose }: Props) {
   };
 
   const openDocuments = (docId?: string) => {
-    router.push(docId ? `/?view=documents&doc=${docId}` : "/?view=documents");
+    const base = `/clientes/${client.id}/prontuario/documentos`;
+    router.push(docId ? `${base}?doc=${docId}` : base);
   };
 
   return (
