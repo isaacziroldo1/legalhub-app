@@ -17,7 +17,7 @@ export async function getClientById(id: string) {
 export async function createClient(data: Prisma.ClientCreateInput) {
   const exists = await prisma.client.findUnique({ where: { cnpj: data.cnpj } });
 
-  if (exists) throw conflict("CNPJ já cadastrado");
+  if (exists) throw conflict("CPF/CNPJ já cadastrado");
 
   return prisma.client.create({ data });
 }

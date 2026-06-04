@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import type { Client } from "@/types";
+import { MaskedField } from "@/components/MaskedField";
 import { UploadModal } from "@/components/UploadModal";
+import { digitsOnly, formatCpfCnpj, formatPhoneBr, isValidCpfCnpjDigits, isValidPhoneDigits } from "@/lib/brFormats";
 
 type Props = {
   client: Client;
@@ -29,9 +31,9 @@ type ClientForm = {
 function clientToForm(client: Client): ClientForm {
   return {
     name: client.name,
-    cnpj: client.cnpj,
+    cnpj: formatCpfCnpj(client.cnpj),
     email: client.email,
-    phone: client.phone,
+    phone: formatPhoneBr(client.phone),
     responsible: client.responsible,
     status: client.status,
     address: client.address,
@@ -161,6 +163,17 @@ export function ClientDrawer({ client, onClose }: Props) {
   const saveClient = async () => {
     setError(null);
     setSuccessMessage(null);
+
+    if (!isValidCpfCnpjDigits(digitsOnly(form.cnpj))) {
+      setError("CPF/CNPJ inválido");
+      return;
+    }
+
+    if (!isValidPhoneDigits(digitsOnly(form.phone))) {
+      setError("Telefone inválido");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -343,9 +356,22 @@ export function ClientDrawer({ client, onClose }: Props) {
               {isEditing ? (
                 <div className="flex flex-col gap-3">
                   <Field label="Nome / Razão Social" value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
-                  <Field label="CPF / CNPJ" value={form.cnpj} onChange={(value) => setForm((prev) => ({ ...prev, cnpj: value }))} />
+                  <MaskedField
+                    label="CPF / CNPJ"
+                    value={form.cnpj}
+                    onChange={(value) => setForm((prev) => ({ ...prev, cnpj: value }))}
+                    format={formatCpfCnpj}
+                    maxLength={18}
+                    required
+                  />
                   <Field label="E-mail" value={form.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} type="email" />
-                  <Field label="Telefone" value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} />
+                  <MaskedField
+                    label="Telefone"
+                    value={form.phone}
+                    onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))}
+                    format={formatPhoneBr}
+                    maxLength={15}
+                  />
                   <Field label="Responsável Jurídico" value={form.responsible} onChange={(value) => setForm((prev) => ({ ...prev, responsible: value }))} />
                   <Field label="Endereço" value={form.address} onChange={(value) => setForm((prev) => ({ ...prev, address: value }))} />
                   <Field label="Cidade" value={form.city} onChange={(value) => setForm((prev) => ({ ...prev, city: value }))} />

@@ -6,7 +6,7 @@ const cnpjSchema = z
   .string()
   .trim()
   .transform((value) => value.replace(/\D/g, ""))
-  .refine((value) => value.length === 14, "CNPJ inválido");
+  .refine((value) => value.length === 11 || value.length === 14, "CPF/CNPJ inválido");
 
 export const createClientSchema = z.object({
   name: z.string().trim().min(3),

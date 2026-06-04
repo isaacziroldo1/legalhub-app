@@ -1,5 +1,7 @@
 "use client";
 
+import { MaskedField } from "@/components/MaskedField";
+import { digitsOnly, formatCpfCnpj, formatPhoneBr, isValidCpfCnpjDigits, isValidPhoneDigits } from "@/lib/brFormats";
 import { X } from "lucide-react";
 import { FormEvent, useState } from "react";
 
@@ -34,6 +36,17 @@ export function ClientModal({ onClose, onSubmit }: Props) {
     e.preventDefault();
     setError(null);
 
+    const cnpjDigits = digitsOnly(cnpj);
+    if (!isValidCpfCnpjDigits(cnpjDigits)) {
+      setError("CPF/CNPJ inválido");
+      return;
+    }
+
+    if (!isValidPhoneDigits(digitsOnly(phone))) {
+      setError("Telefone inválido");
+      return;
+    }
+
     try {
       await onSubmit({ name, cnpj, email, phone, responsible, status, address, city, observations });
     } catch (err) {
@@ -50,9 +63,9 @@ export function ClientModal({ onClose, onSubmit }: Props) {
         </div>
 
         <Field label="Nome / Razão Social" value={name} onChange={setName} placeholder="Ex: Silva & Advogados Associados" />
-        <Field label="CPF / CNPJ" value={cnpj} onChange={setCnpj} placeholder="00.000.000/0000-00" />
+        <MaskedField label="CPF / CNPJ" value={cnpj} onChange={setCnpj} format={formatCpfCnpj} placeholder="00.000.000/0000-00" maxLength={18} required />
         <Field label="E-mail de Contato" value={email} onChange={setEmail} placeholder="exemplo@dominio.com" type="email" />
-        <Field label="Telefone" value={phone} onChange={setPhone} placeholder="(11) 99999-9999" />
+        <MaskedField label="Telefone" value={phone} onChange={setPhone} format={formatPhoneBr} placeholder="(11) 99999-9999" maxLength={15} />
         <Field label="Responsável Legal" value={responsible} onChange={setResponsible} placeholder="Ex: Dr. João Carlos" />
         <Field label="Endereço" value={address} onChange={setAddress} placeholder="Av. Paulista, 1000" />
         <Field label="Cidade" value={city} onChange={setCity} placeholder="São Paulo, SP" />
