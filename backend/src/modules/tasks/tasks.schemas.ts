@@ -21,8 +21,18 @@ export const updateTaskSchema = z.object({
   status: taskStatusSchema.optional(),
   priority: taskPrioritySchema.optional(),
   responsible: z.string().trim().min(2).optional(),
+  observations: z.string().trim().optional().nullable(),
 });
 
 export const taskIdSchema = z.object({
   id: z.string().min(1),
+});
+
+export const taskAttachmentIdSchema = z.object({
+  id: z.string().min(1),
+  attachmentId: z.string().min(1),
+});
+
+export const createTaskCommentSchema = z.object({
+  body: z.string().trim().min(1),
 });

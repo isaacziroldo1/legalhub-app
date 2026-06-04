@@ -24,8 +24,43 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   responsible: string;
+  observations?: string;
   createdAt: string;
   completedAt?: string;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  taskId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface TaskDetailClient {
+  id: string;
+  name: string;
+  cnpj: string;
+  email: string;
+  phone: string;
+  status: string;
+  responsible: string;
+}
+
+export interface TaskDetail extends Task {
+  client: TaskDetailClient;
+  comments: TaskComment[];
+  attachments: TaskAttachment[];
 }
 
 export interface DocumentItem {

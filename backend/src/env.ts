@@ -7,6 +7,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().optional(),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(8),
   CORS_ORIGIN: z.string().min(1).default("http://localhost:3000"),
+  UPLOAD_DIR: z.string().min(1).default("uploads"),
+  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(52_428_800),
 });
 
 const parsedEnv = envSchema.parse(process.env);

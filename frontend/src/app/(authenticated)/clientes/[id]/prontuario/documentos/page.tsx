@@ -1,5 +1,11 @@
 import { ClientDocumentsRoute } from "@/components/routes/ClientDocumentsRoute";
 
-export default function Page({ params }: { params: { id: string } }) {
-  return <ClientDocumentsRoute clientId={params.id} />;
+export default function Page({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { doc?: string };
+}) {
+  return <ClientDocumentsRoute clientId={params.id} highlightDocId={searchParams.doc} />;
 }

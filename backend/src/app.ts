@@ -1,6 +1,8 @@
 import fastify from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import { env } from "@/env";
+import { ensureUploadDir } from "@/modules/tasks/task-upload.storage";
 import { HttpError } from "@/shared/http/errors";
 import { requireAuth } from "@/shared/http/require-auth";
 import { authRoutes } from "@/modules/auth/auth.routes";
@@ -11,6 +13,14 @@ import { settingsRoutes } from "@/modules/settings/settings.routes";
 
 export function createApp() {
   const app = fastify({ logger: true });
+
+  void ensureUploadDir();
+
+  app.register(multipart, {
+    limits: {
+      fileSize: env.MAX_UPLOAD_BYTES,
+    },
+  });
 
   app.register(cors, {
     origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((item) => item.trim()),

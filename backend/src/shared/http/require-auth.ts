@@ -15,4 +15,6 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
   if (!session) {
     throw unauthorized("Sessão inválida");
   }
+
+  request.authUser = session.user;
 }
