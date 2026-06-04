@@ -152,6 +152,7 @@ Para produção, rode `npm run build:frontend` e `npm run build:backend` antes d
 - [backend/README.md](backend/README.md) — resumo da API e rotas
 - [frontend/README.md](frontend/README.md) — resumo do frontend e estrutura `src/`
 - [PROJECT_STANDARDS.md](PROJECT_STANDARDS.md) — convenções de código e processo de trabalho
+- [ROADMAP.md](ROADMAP.md) — próximas melhorias e checklist (roadmap)
 
 ## Trocar banco de dados
 

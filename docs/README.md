@@ -17,6 +17,7 @@ Documentação para desenvolvedores que trabalham no monorepo LegalHub (Next.js 
 |-----------|----------|
 | [../README.md](../README.md) | Setup local, scripts npm, troubleshooting |
 | [../PROJECT_STANDARDS.md](../PROJECT_STANDARDS.md) | Convenções de código e processo |
+| [../ROADMAP.md](../ROADMAP.md) | Próximas melhorias e checklist do produto |
 | [../AGENTS.md](../AGENTS.md) | Instruções para agentes Cursor Cloud |
 | [../backend/README.md](../backend/README.md) | Resumo da API e como rodar o backend |
 | [../frontend/README.md](../frontend/README.md) | Resumo do frontend e estrutura `src/` |
