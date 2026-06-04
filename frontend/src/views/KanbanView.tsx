@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useApp } from "@/context/AppContext";
+import { applyTaskStatusOverrides } from "@/context/taskState";
 import type { Task, TaskStatus } from "@/types";
 
 type Props = {
@@ -25,19 +26,22 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const [draggedTask, setDraggedTask] = useState<DraggedTask | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [pendingTaskStatuses, setPendingTaskStatuses] = useState<Record<string, TaskStatus>>({});
   const [dropError, setDropError] = useState<string | null>(null);
   const updatingTaskIdsRef = useRef(new Set<string>());
+  const transparentDragImageRef = useRef<HTMLImageElement | null>(null);
 
   const scopedTasks = useMemo(() => (clientId ? tasks.filter((task) => task.clientId === clientId) : tasks), [clientId, tasks]);
+  const effectiveTasks = useMemo(() => applyTaskStatusOverrides(scopedTasks, pendingTaskStatuses), [scopedTasks, pendingTaskStatuses]);
 
   const columns = useMemo<KanbanColumn[]>(
     () => [
-      { key: "todo", name: "A Fazer", tasksList: scopedTasks.filter((task) => task.status === "todo") },
-      { key: "drafting", name: "Em Redação", tasksList: scopedTasks.filter((task) => task.status === "drafting") },
-      { key: "review", name: "Revisão Interna", tasksList: scopedTasks.filter((task) => task.status === "review") },
-      { key: "done", name: "Protocolado/Concluído", tasksList: scopedTasks.filter((task) => task.status === "done") },
+      { key: "todo", name: "A Fazer", tasksList: effectiveTasks.filter((task) => task.status === "todo") },
+      { key: "drafting", name: "Em Redação", tasksList: effectiveTasks.filter((task) => task.status === "drafting") },
+      { key: "review", name: "Revisão Interna", tasksList: effectiveTasks.filter((task) => task.status === "review") },
+      { key: "done", name: "Protocolado/Concluído", tasksList: effectiveTasks.filter((task) => task.status === "done") },
     ],
-    [scopedTasks]
+    [effectiveTasks]
   );
 
   const getNextStatus = (status: TaskStatus): TaskStatus => {
@@ -79,12 +83,38 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [highlightTaskId, scopedTasks]);
 
+  useEffect(() => {
+    const transparentDragImage = new Image();
+    transparentDragImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    transparentDragImageRef.current = transparentDragImage;
+  }, []);
+
+  useEffect(() => {
+    const clearDragState = () => {
+      setDraggedTask(null);
+      setDragOverStatus(null);
+    };
+
+    window.addEventListener("dragend", clearDragState);
+    window.addEventListener("drop", clearDragState);
+    window.addEventListener("pointerup", clearDragState);
+
+    return () => {
+      window.removeEventListener("dragend", clearDragState);
+      window.removeEventListener("drop", clearDragState);
+      window.removeEventListener("pointerup", clearDragState);
+    };
+  }, []);
+
   const handleDragStart = (event: DragEvent<HTMLDivElement>, task: Task) => {
     setDraggedTask({ id: task.id, status: task.status });
     setDropError(null);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("application/x-legalhub-task-id", task.id);
     event.dataTransfer.setData("text/plain", task.id);
+    if (transparentDragImageRef.current) {
+      event.dataTransfer.setDragImage(transparentDragImageRef.current, 0, 0);
+    }
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>, status: TaskStatus) => {
@@ -109,12 +139,13 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     setDraggedTask(null);
     setDragOverStatus(null);
 
-    const task = scopedTasks.find((item) => item.id === taskId);
+    const task = effectiveTasks.find((item) => item.id === taskId);
     if (!task || task.status === status) return;
     if (updatingTaskIdsRef.current.has(task.id)) return;
 
     updatingTaskIdsRef.current.add(task.id);
     setUpdatingTaskId(task.id);
+    setPendingTaskStatuses((current) => ({ ...current, [task.id]: status }));
     setDropError(null);
 
     try {
@@ -125,6 +156,10 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
     } finally {
       updatingTaskIdsRef.current.delete(task.id);
       setUpdatingTaskId(null);
+      setPendingTaskStatuses((current) => {
+        const { [task.id]: _removedStatus, ...nextStatuses } = current;
+        return nextStatuses;
+      });
     }
   };
 

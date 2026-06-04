@@ -17,3 +17,10 @@ export function replaceTaskById(tasks: Task[], updatedTask: Task) {
     return nextTasks;
   }, []);
 }
+
+export function applyTaskStatusOverrides(tasks: Task[], statusOverrides: Record<string, Task["status"]>) {
+  return tasks.map((task) => {
+    const status = statusOverrides[task.id];
+    return status ? { ...task, status } : task;
+  });
+}

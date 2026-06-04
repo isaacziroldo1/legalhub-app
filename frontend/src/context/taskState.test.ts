@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "@/types";
-import { replaceTaskById } from "./taskState";
+import { applyTaskStatusOverrides, replaceTaskById } from "./taskState";
 
 const baseTask: Task = {
   id: "task-1",
@@ -33,5 +33,18 @@ describe("replaceTaskById", () => {
     const result = replaceTaskById([duplicatedTaskInPreviousColumn, duplicatedTaskInTargetColumn], updatedTask);
 
     expect(result).toEqual([updatedTask]);
+  });
+});
+
+describe("applyTaskStatusOverrides", () => {
+  it("renders a pending moved task in only its target status", () => {
+    const otherTask: Task = { ...baseTask, id: "task-2", title: "Recurso", status: "review" };
+
+    const result = applyTaskStatusOverrides([baseTask, otherTask], { [baseTask.id]: "drafting" });
+
+    expect(result).toHaveLength(2);
+    expect(result.filter((task) => task.id === baseTask.id)).toEqual([{ ...baseTask, status: "drafting" }]);
+    expect(result.filter((task) => task.status === "todo")).toEqual([]);
+    expect(result.filter((task) => task.status === "drafting")).toHaveLength(1);
   });
 });
