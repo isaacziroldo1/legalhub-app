@@ -140,18 +140,24 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
     mouseDraggedTaskRef.current = task;
     lastDragOverStatusRef.current = null;
+    setDraggedTask({ id: task.id, status: task.status });
+    setDropError(null);
   };
 
   const handleMouseOverColumn = (status: TaskStatus) => {
     const task = mouseDraggedTaskRef.current;
     if (!task) return;
 
-    lastDragOverStatusRef.current = task.status === status ? null : status;
+    const targetStatus = task.status === status ? null : status;
+    lastDragOverStatusRef.current = targetStatus;
+    setDragOverStatus(targetStatus);
   };
 
   const handleMouseUp = async (event: ReactMouseEvent<HTMLDivElement>, status: TaskStatus) => {
     const task = mouseDraggedTaskRef.current;
     mouseDraggedTaskRef.current = null;
+    setDraggedTask(null);
+    setDragOverStatus(null);
     if (!task || handledDropTaskIdRef.current === task.id) return;
 
     const targetStatus = getTaskStatusFromElement(document.elementFromPoint(event.clientX, event.clientY)) ?? lastDragOverStatusRef.current ?? status;
@@ -200,7 +206,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                     id={`task-${task.id}`}
                     aria-grabbed={isDragging}
                     data-task-id={task.id}
-                    draggable={!isUpdating}
+                    draggable={false}
                     onMouseDown={(event) => handleMouseDown(event, task)}
                     onDragStart={(event) => handleDragStart(event, task)}
                     onDragEnd={(event) => void handleDragEnd(event, task)}
