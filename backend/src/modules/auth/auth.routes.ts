@@ -5,7 +5,14 @@ import { loginSchema } from "./auth.schemas";
 import { getSession, signIn, signOut } from "./auth.service";
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/login", async (request, reply) => {
+  app.post("/login", {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "15 minutes",
+      },
+    },
+  }, async (request, reply) => {
     const input = parseBody(loginSchema, request.body);
     const session = await signIn(input.email, input.password);
 

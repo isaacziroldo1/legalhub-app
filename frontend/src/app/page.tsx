@@ -2,8 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AppProvider, useApp } from "@/context/AppContext";
-import { AuthProvider } from "@/auth/AuthProvider";
+import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/auth/useAuth";
 import type { ViewKey } from "@/types";
 import { AppShell } from "@/components/AppShell";
@@ -64,11 +63,5 @@ function AppGate() {
 }
 
 export default function Page() {
-  return (
-    <AuthProvider>
-      <AppProvider>
-        <AppGate />
-      </AppProvider>
-    </AuthProvider>
-  );
+  return <AppGate />;
 }

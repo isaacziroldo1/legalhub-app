@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 function base64UrlEncode(input: string) {
   return Buffer.from(input).toString("base64url");
@@ -41,7 +41,12 @@ export function verifyJwt(token: string, secret: string) {
 
   const expectedSignature = createHmac("sha256", secret).update(`${headerPart}.${payloadPart}`).digest("base64url");
 
-  if (expectedSignature !== signaturePart) return null;
+  const expectedBuffer = Buffer.from(expectedSignature);
+  const actualBuffer = Buffer.from(signaturePart);
+
+  if (expectedBuffer.length !== actualBuffer.length || !timingSafeEqual(expectedBuffer, actualBuffer)) {
+    return null;
+  }
 
   try {
     const payload = JSON.parse(base64UrlDecode(payloadPart)) as TokenPayload;

@@ -3,18 +3,10 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { AuthProvider } from "@/auth/AuthProvider";
 import { useAuth } from "@/auth/useAuth";
-import { AppProvider } from "@/context/AppContext";
 
 export function RouteProviders({ children }: { children: ReactNode }) {
-  return (
-    <AuthProvider>
-      <AppProvider>
-        <RouteGuard>{children}</RouteGuard>
-      </AppProvider>
-    </AuthProvider>
-  );
+  return <RouteGuard>{children}</RouteGuard>;
 }
 
 function RouteGuard({ children }: { children: ReactNode }) {

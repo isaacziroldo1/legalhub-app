@@ -1,5 +1,7 @@
 import fastify from "fastify";
 import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { env } from "@/env";
 import { ensureUploadDir } from "@/modules/tasks/task-upload.storage";
@@ -25,6 +27,17 @@ export function createApp() {
   app.register(cors, {
     origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(",").map((item) => item.trim()),
     credentials: true,
+  });
+
+  app.register(helmet, {
+    global: true,
+    contentSecurityPolicy: false,
+  });
+
+  app.register(rateLimit, {
+    global: false,
+    max: 10,
+    timeWindow: "15 minutes",
   });
 
   app.get("/health", async () => ({ status: "ok" }));

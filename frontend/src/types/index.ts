@@ -109,7 +109,6 @@ export interface TokenPayload {
 }
 
 export interface Session {
-  token: string;
   user: User;
   expiresAt: number;
 }

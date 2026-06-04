@@ -34,6 +34,15 @@ async function main() {
     },
   });
 
+  await prisma.user.create({
+    data: {
+      name: "Membro LegalHub",
+      email: "membro@legalhub.com",
+      passwordHash: hashPassword("LegalHub@123"),
+      role: "member",
+    },
+  });
+
   const settings = await prisma.appSetting.create({
     data: { id: "global", isSmartScanEnabled: true },
   });
@@ -72,7 +81,7 @@ async function main() {
     ],
   });
 
-  console.log(`Seed concluido: ${admin.email}, settings ${settings.id}`);
+  console.log(`Seed concluido: admin ${admin.email}, member membro@legalhub.com, settings ${settings.id}`);
 }
 
 main()

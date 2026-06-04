@@ -18,7 +18,7 @@ Run both processes for end-to-end testing. Use separate tmux sessions (e.g. `leg
 Copy once if missing:
 
 - `backend/.env` from `backend/.env.example`
-- `frontend/.env` from `frontend/.env.example` (must set `NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api`)
+- `frontend/.env` from `frontend/.env.example` (must set `API_INTERNAL_URL=http://localhost:3001/api` for the BFF)
 
 `CORS_ORIGIN` in the backend must match the frontend origin (`http://localhost:3000`).
 

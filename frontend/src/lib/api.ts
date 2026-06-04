@@ -1,10 +1,9 @@
 import type { AppSettings, AppState, Client, DocumentItem, Session, Task, TaskAttachment, TaskComment, TaskDetail } from "@/types";
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001/api").replace(/\/$/, "");
+const PROXY_BASE_URL = "/api/proxy";
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
-  token?: string | null;
 };
 
 class ApiError extends Error {
@@ -18,13 +17,13 @@ class ApiError extends Error {
 }
 
 async function requestJson<T>(path: string, options: RequestOptions = {}) {
-  const { token, body, headers, ...init } = options;
+  const { body, headers, ...init } = options;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${PROXY_BASE_URL}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -98,71 +97,120 @@ function normalizeAppState(payload: {
 }
 
 export async function signInRequest(credentials: { email: string; password: string }) {
-  return requestJson<Session>("/auth/login", { method: "POST", body: credentials });
+  const response = await fetch("/api/session/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new ApiError(response.status, payload?.message ?? "Falha no login");
+  }
+
+  return payload as Session;
 }
 
-export async function getSessionRequest(token: string) {
-  return requestJson<Session>("/auth/session", { token, method: "GET" });
+export async function getSessionRequest() {
+  const response = await fetch("/api/session/me", {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new ApiError(response.status, payload?.message ?? "Sessão inválida");
+  }
+
+  return payload as Session;
 }
 
-export async function signOutRequest(token: string) {
-  return requestJson<void>("/auth/logout", { token, method: "POST" });
+export async function signOutRequest() {
+  const response = await fetch("/api/session/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok && response.status !== 204) {
+    const payload = await response.json().catch(() => null);
+    throw new ApiError(response.status, payload?.message ?? "Falha ao encerrar sessão");
+  }
 }
 
-export async function loadAppStateRequest(token: string) {
+export async function loadAppStateRequest() {
   const [clients, tasks, documents, settings] = await Promise.all([
-    requestJson<Client[]>("/clients", { token }),
-    requestJson<Array<Task & { completedAt?: string | null }>>("/tasks", { token }),
-    requestJson<Array<DocumentItem & { autoMappedFields?: Record<string, string> | null; clientId?: string | null }>>("/documents", { token }),
-    requestJson<AppSettings>("/settings", { token }),
+    requestJson<Client[]>("/clients"),
+    requestJson<Array<Task & { completedAt?: string | null }>>("/tasks"),
+    requestJson<Array<DocumentItem & { autoMappedFields?: Record<string, string> | null; clientId?: string | null }>>("/documents"),
+    requestJson<AppSettings>("/settings"),
   ]);
 
   return normalizeAppState({ clients, tasks, documents, settings });
 }
 
-export async function createClientRequest(token: string, client: Omit<Client, "id" | "createdAt">) {
-  return requestJson<Client>("/clients", { token, method: "POST", body: client });
+export async function fetchClientsRequest() {
+  return requestJson<Client[]>("/clients");
 }
 
-export async function updateClientRequest(token: string, id: string, patch: Partial<Omit<Client, "id">>) {
-  return requestJson<Client>(`/clients/${id}`, { token, method: "PATCH", body: patch });
+export async function fetchTasksRequest() {
+  const tasks = await requestJson<Array<Task & { completedAt?: string | null }>>("/tasks");
+  return tasks.map(normalizeTask);
 }
 
-export async function deleteClientRequest(token: string, id: string) {
-  return requestJson<void>(`/clients/${id}`, { token, method: "DELETE" });
+export async function fetchDocumentsRequest() {
+  const documents = await requestJson<Array<DocumentItem & { autoMappedFields?: Record<string, string> | null; clientId?: string | null }>>("/documents");
+  return documents.map(normalizeDocument);
 }
 
-export async function createTaskRequest(token: string, task: Omit<Task, "id" | "createdAt" | "completedAt">) {
-  const createdTask = await requestJson<Task & { completedAt?: string | null }>("/tasks", { token, method: "POST", body: task });
+export async function fetchSettingsRequest() {
+  return requestJson<AppSettings>("/settings");
+}
+
+export async function createClientRequest(client: Omit<Client, "id" | "createdAt">) {
+  return requestJson<Client>("/clients", { method: "POST", body: client });
+}
+
+export async function updateClientRequest(id: string, patch: Partial<Omit<Client, "id">>) {
+  return requestJson<Client>(`/clients/${id}`, { method: "PATCH", body: patch });
+}
+
+export async function deleteClientRequest(id: string) {
+  return requestJson<void>(`/clients/${id}`, { method: "DELETE" });
+}
+
+export async function createTaskRequest(task: Omit<Task, "id" | "createdAt" | "completedAt">) {
+  const createdTask = await requestJson<Task & { completedAt?: string | null }>("/tasks", { method: "POST", body: task });
   return normalizeTask(createdTask);
 }
 
-export async function updateTaskRequest(token: string, id: string, patch: Partial<Omit<Task, "id">>) {
-  const updatedTask = await requestJson<Task & { completedAt?: string | null }>(`/tasks/${id}`, { token, method: "PATCH", body: patch });
+export async function updateTaskRequest(id: string, patch: Partial<Omit<Task, "id">>) {
+  const updatedTask = await requestJson<Task & { completedAt?: string | null }>(`/tasks/${id}`, { method: "PATCH", body: patch });
   return normalizeTask(updatedTask);
 }
 
-export async function deleteTaskRequest(token: string, id: string) {
-  return requestJson<void>(`/tasks/${id}`, { token, method: "DELETE" });
+export async function deleteTaskRequest(id: string) {
+  return requestJson<void>(`/tasks/${id}`, { method: "DELETE" });
 }
 
-export async function fetchTaskDetailRequest(token: string, id: string) {
-  const detail = await requestJson<TaskDetail & { completedAt?: string | null; observations?: string | null }>(`/tasks/${id}/detail`, { token });
+export async function fetchTaskDetailRequest(id: string) {
+  const detail = await requestJson<TaskDetail & { completedAt?: string | null; observations?: string | null }>(`/tasks/${id}/detail`);
   return normalizeTaskDetail(detail);
 }
 
-export async function updateTaskObservationsRequest(token: string, id: string, observations: string) {
+export async function updateTaskObservationsRequest(id: string, observations: string) {
   const updatedTask = await requestJson<Task & { completedAt?: string | null; observations?: string | null }>(`/tasks/${id}`, {
-    token,
     method: "PATCH",
     body: { observations },
   });
   return normalizeTask(updatedTask);
 }
 
-export async function createTaskCommentRequest(token: string, taskId: string, body: string) {
+export async function createTaskCommentRequest(taskId: string, body: string) {
   const comment = await requestJson<TaskComment & { createdAt: string | Date }>(`/tasks/${taskId}/comments`, {
-    token,
     method: "POST",
     body: { body },
   });
@@ -172,15 +220,13 @@ export async function createTaskCommentRequest(token: string, taskId: string, bo
   };
 }
 
-export async function uploadTaskAttachmentRequest(token: string, taskId: string, file: File) {
+export async function uploadTaskAttachmentRequest(taskId: string, file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/attachments`, {
+  const response = await fetch(`${PROXY_BASE_URL}/tasks/${taskId}/attachments`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    credentials: "include",
     body: formData,
   });
 
@@ -197,11 +243,9 @@ export async function uploadTaskAttachmentRequest(token: string, taskId: string,
   };
 }
 
-export async function downloadTaskAttachmentRequest(token: string, taskId: string, attachmentId: string) {
-  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/attachments/${attachmentId}/download`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+export async function downloadTaskAttachmentRequest(taskId: string, attachmentId: string) {
+  const response = await fetch(`${PROXY_BASE_URL}/tasks/${taskId}/attachments/${attachmentId}/download`, {
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -212,24 +256,24 @@ export async function downloadTaskAttachmentRequest(token: string, taskId: strin
   return response.blob();
 }
 
-export async function deleteTaskAttachmentRequest(token: string, taskId: string, attachmentId: string) {
-  return requestJson<void>(`/tasks/${taskId}/attachments/${attachmentId}`, { token, method: "DELETE" });
+export async function deleteTaskAttachmentRequest(taskId: string, attachmentId: string) {
+  return requestJson<void>(`/tasks/${taskId}/attachments/${attachmentId}`, { method: "DELETE" });
 }
 
-export async function createDocumentRequest(token: string, document: Omit<DocumentItem, "id" | "uploadedAt">) {
-  return requestJson<DocumentItem>("/documents", { token, method: "POST", body: document });
+export async function createDocumentRequest(document: Omit<DocumentItem, "id" | "uploadedAt">) {
+  return requestJson<DocumentItem>("/documents", { method: "POST", body: document });
 }
 
-export async function updateDocumentRequest(token: string, id: string, patch: Partial<Omit<DocumentItem, "id">>) {
-  return requestJson<DocumentItem>(`/documents/${id}`, { token, method: "PATCH", body: patch });
+export async function updateDocumentRequest(id: string, patch: Partial<Omit<DocumentItem, "id">>) {
+  return requestJson<DocumentItem>(`/documents/${id}`, { method: "PATCH", body: patch });
 }
 
-export async function deleteDocumentRequest(token: string, id: string) {
-  return requestJson<void>(`/documents/${id}`, { token, method: "DELETE" });
+export async function deleteDocumentRequest(id: string) {
+  return requestJson<void>(`/documents/${id}`, { method: "DELETE" });
 }
 
-export async function updateSettingsRequest(token: string, isSmartScanEnabled: boolean) {
-  return requestJson<AppSettings>("/settings", { token, method: "PATCH", body: { isSmartScanEnabled } });
+export async function updateSettingsRequest(isSmartScanEnabled: boolean) {
+  return requestJson<AppSettings>("/settings", { method: "PATCH", body: { isSmartScanEnabled } });
 }
 
 export { ApiError };

@@ -12,11 +12,20 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".txt"]);
 
+const STORED_NAME_PATTERN = /^[a-f0-9-]{36}\.(pdf|docx|txt)$/;
+
+export function assertSafeStoredName(storedName: string) {
+  if (!STORED_NAME_PATTERN.test(storedName)) {
+    throw badRequest("Nome de arquivo armazenado inválido.");
+  }
+}
+
 export function getUploadRoot() {
   return path.resolve(process.cwd(), env.UPLOAD_DIR);
 }
 
 export function getStoredFilePath(storedName: string) {
+  assertSafeStoredName(storedName);
   return path.join(getUploadRoot(), storedName);
 }
 

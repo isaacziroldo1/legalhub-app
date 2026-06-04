@@ -21,9 +21,11 @@ O repositório é um monorepo com dois pacotes npm independentes e scripts unifi
 legalhub-app/
 ├── frontend/              # Next.js 14, React, Tailwind
 ├── backend/               # Fastify, Prisma, Zod
-├── package.json           # scripts dev:*, prisma:*, db:seed
+├── docs/                  # documentação técnica e openapi.yaml
+├── package.json           # scripts dev:*, prisma:*, db:seed, docs:*
 ├── PROJECT_STANDARDS.md   # padrões de desenvolvimento
-└── backend/README.md      # API, módulos e rotas
+├── backend/README.md      # API, módulos e rotas
+└── frontend/README.md     # estrutura do app Next.js
 ```
 
 Em desenvolvimento local, o navegador acessa o frontend na porta 3000; o frontend consome a API na porta 3001, que persiste dados em SQLite via Prisma.
@@ -37,7 +39,7 @@ flowchart LR
     DB["SQLite Prisma"]
   end
   Browser --> Next
-  Next -->|"NEXT_PUBLIC_API_BASE_URL"| API
+  Next -->|"API_INTERNAL_URL (BFF)"| API
   API --> DB
 ```
 
@@ -96,7 +98,7 @@ npm install
 Copie `frontend/.env.example` para `frontend/.env`:
 
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
+API_INTERNAL_URL=http://localhost:3001/api
 ```
 
 ### 4. Subir os serviços
@@ -138,12 +140,17 @@ Todos os comandos abaixo são executados na pasta raiz do repositório.
 | `npm run prisma:migrate` | Aplica migrations em desenvolvimento |
 | `npm run prisma:deploy` | Aplica migrations em deploy |
 | `npm run db:seed` | Popula o banco com dados iniciais |
+| `npm run docs:api` | Abre documentação interativa da API (OpenAPI) |
+| `npm run docs:lint` | Valida `docs/openapi.yaml` com Redocly |
 
 Para produção, rode `npm run build:frontend` e `npm run build:backend` antes de `start:frontend` e `start:backend`.
 
 ## Documentação relacionada
 
-- [backend/README.md](backend/README.md) — stack da API, estrutura de módulos e rotas REST
+- [docs/README.md](docs/README.md) — índice da documentação técnica (arquitetura, auth, banco, frontend, backend)
+- [docs/openapi.yaml](docs/openapi.yaml) — especificação OpenAPI 3.1 da API REST
+- [backend/README.md](backend/README.md) — resumo da API e rotas
+- [frontend/README.md](frontend/README.md) — resumo do frontend e estrutura `src/`
 - [PROJECT_STANDARDS.md](PROJECT_STANDARDS.md) — convenções de código e processo de trabalho
 
 ## Trocar banco de dados
@@ -153,6 +160,6 @@ Altere `DATABASE_URL` no `.env` do backend e o `provider` em `backend/prisma/sch
 ## Problemas comuns
 
 - **Porta em uso:** confira se 3000 (frontend) e 3001 (backend) estão livres ou ajuste `PORT` / URL do Next.
-- **API inacessível no frontend:** verifique `NEXT_PUBLIC_API_BASE_URL` e reinicie o `dev:frontend` após mudar o `.env`.
+- **API inacessível no frontend:** verifique `API_INTERNAL_URL` em `frontend/.env` e reinicie o `dev:frontend` após mudar o `.env`.
 - **Erro de CORS:** alinhe `CORS_ORIGIN` com a URL do frontend.
 - **Banco vazio ou desatualizado:** rode `npm run prisma:migrate` e, se precisar de dados iniciais, `npm run db:seed`.

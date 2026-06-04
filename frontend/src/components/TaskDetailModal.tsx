@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { useApp } from "@/context/AppContext";
 import { downloadTaskAttachmentRequest, fetchTaskDetailRequest } from "@/lib/api";
 import type { Task, TaskDetail, TaskPriority, TaskStatus } from "@/types";
@@ -64,6 +65,8 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
   const [commentDraft, setCommentDraft] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [pendingDeleteAttachment, setPendingDeleteAttachment] = useState<{ id: string; originalName: string } | null>(null);
+  const [deletingAttachment, setDeletingAttachment] = useState(false);
 
   const loadDetail = useCallback(async () => {
     if (!session) return;
@@ -72,7 +75,7 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
     setError(null);
 
     try {
-      const data = await fetchTaskDetailRequest(session.token, taskId);
+      const data = await fetchTaskDetailRequest(taskId);
       setDetail(data);
       setObservations(data.observations ?? "");
     } catch (err) {
@@ -88,12 +91,17 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (pendingDeleteAttachment) {
+        if (!deletingAttachment) setPendingDeleteAttachment(null);
+        return;
+      }
+      onClose();
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [deletingAttachment, onClose, pendingDeleteAttachment]);
 
   const clientDocuments = useMemo(() => {
     const clientId = detail?.clientId ?? initialTask?.clientId;
@@ -169,7 +177,7 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
     if (!session) return;
 
     try {
-      const blob = await downloadTaskAttachmentRequest(session.token, taskId, attachmentId);
+      const blob = await downloadTaskAttachmentRequest(taskId, attachmentId);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -181,8 +189,12 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
     }
   };
 
-  const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!window.confirm("Remover este anexo?")) return;
+  const confirmDeleteAttachment = async () => {
+    if (!pendingDeleteAttachment) return;
+
+    const { id: attachmentId } = pendingDeleteAttachment;
+    setDeletingAttachment(true);
+    setError(null);
 
     try {
       await removeTaskAttachment(taskId, attachmentId);
@@ -194,8 +206,12 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
             }
           : current
       );
+      setPendingDeleteAttachment(null);
     } catch (err) {
+      setPendingDeleteAttachment(null);
       setError(err instanceof Error ? err.message : "Falha ao remover anexo");
+    } finally {
+      setDeletingAttachment(false);
     }
   };
 
@@ -203,9 +219,10 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
   const clientId = detail?.clientId ?? initialTask?.clientId;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
+      onClick={() => !pendingDeleteAttachment && onClose()}
       role="presentation"
     >
       <div
@@ -372,7 +389,9 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleDeleteAttachment(attachment.id)}
+                            onClick={() =>
+                              setPendingDeleteAttachment({ id: attachment.id, originalName: attachment.originalName })
+                            }
                             className="rounded p-1.5 text-zinc-500 transition hover:bg-white hover:text-red-600"
                             aria-label={`Remover ${attachment.originalName}`}
                           >
@@ -440,5 +459,18 @@ export function TaskDetailModal({ taskId, onClose, initialTask }: Props) {
         )}
       </div>
     </div>
+
+    {pendingDeleteAttachment && (
+      <ConfirmModal
+        title="Remover anexo"
+        message={`Remover "${pendingDeleteAttachment.originalName}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Remover"
+        variant="danger"
+        isLoading={deletingAttachment}
+        onClose={() => !deletingAttachment && setPendingDeleteAttachment(null)}
+        onConfirm={confirmDeleteAttachment}
+      />
+    )}
+    </>
   );
 }

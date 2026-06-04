@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import type { AppState, Client, DocumentItem, Task } from "@/types";
 import { useAuth } from "@/auth/useAuth";
 import { replaceTaskById } from "./taskState";
+import { ApiError } from "@/lib/api";
 import {
   createClientRequest,
   createDocumentRequest,
@@ -12,7 +13,8 @@ import {
   deleteClientRequest,
   deleteDocumentRequest,
   deleteTaskAttachmentRequest,
-  deleteTaskRequest,
+  fetchClientsRequest,
+  fetchDocumentsRequest,
   loadAppStateRequest,
   updateClientRequest,
   updateDocumentRequest,
@@ -70,7 +72,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     setLoading(true);
 
-    loadAppStateRequest(session.token)
+    loadAppStateRequest()
       .then((data) => {
         if (active) setState(data);
       })
@@ -88,33 +90,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [authLoading, session]);
 
-  const refreshState = async () => {
-    if (!session) throw new Error("Sessão indisponível");
-    setState(await loadAppStateRequest(session.token));
-  };
-
   const addClient = async (client: Omit<Client, "id" | "createdAt">) => {
     if (!session) throw new Error("Sessão indisponível");
-    await createClientRequest(session.token, client);
-    await refreshState();
+    await createClientRequest(client);
+    const clients = await fetchClientsRequest();
+    setState((current) => ({ ...current, clients }));
   };
 
   const updateClient = async (id: string, patch: Partial<Omit<Client, "id">>) => {
     if (!session) throw new Error("Sessão indisponível");
-    await updateClientRequest(session.token, id, patch);
-    await refreshState();
+    const updated = await updateClientRequest(id, patch);
+    setState((current) => ({
+      ...current,
+      clients: current.clients.map((item) => (item.id === id ? updated : item)),
+      tasks: current.tasks.map((task) =>
+        task.clientId === id && patch.name ? { ...task, clientName: patch.name } : task
+      ),
+    }));
   };
 
   const removeClient = async (id: string) => {
     if (!session) throw new Error("Sessão indisponível");
-    await deleteClientRequest(session.token, id);
-    await refreshState();
+    await deleteClientRequest(id);
+    setState((current) => ({
+      ...current,
+      clients: current.clients.filter((item) => item.id !== id),
+      tasks: current.tasks.filter((task) => task.clientId !== id),
+      documents: current.documents.filter((doc) => doc.clientId !== id),
+    }));
   };
 
   const addTask = async (task: Omit<Task, "id" | "createdAt" | "completedAt">) => {
     if (!session) throw new Error("Sessão indisponível");
-    await createTaskRequest(session.token, task);
-    await refreshState();
+    const created = await createTaskRequest(task);
+    setState((current) => ({
+      ...current,
+      tasks: [created, ...current.tasks],
+    }));
   };
 
   const updateTaskStatus = async (id: string, status: Task["status"]) => {
@@ -132,7 +144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const updatedTask = await updateTaskRequest(session.token, id, { status });
+      const updatedTask = await updateTaskRequest(id, { status });
       setState((current) => ({
         ...current,
         tasks: replaceTaskById(current.tasks, updatedTask),
@@ -152,7 +164,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateTaskObservations = async (id: string, observations: string) => {
     if (!session) throw new Error("Sessão indisponível");
 
-    const updatedTask = await updateTaskObservationsRequest(session.token, id, observations);
+    const updatedTask = await updateTaskObservationsRequest(id, observations);
     setState((current) => ({
       ...current,
       tasks: replaceTaskById(current.tasks, updatedTask),
@@ -163,29 +175,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addTaskComment = async (taskId: string, body: string) => {
     if (!session) throw new Error("Sessão indisponível");
-    return createTaskCommentRequest(session.token, taskId, body);
+    return createTaskCommentRequest(taskId, body);
   };
 
   const uploadTaskAttachment = async (taskId: string, file: File) => {
     if (!session) throw new Error("Sessão indisponível");
-    return uploadTaskAttachmentRequest(session.token, taskId, file);
+    return uploadTaskAttachmentRequest(taskId, file);
   };
 
   const removeTaskAttachment = async (taskId: string, attachmentId: string) => {
     if (!session) throw new Error("Sessão indisponível");
-    await deleteTaskAttachmentRequest(session.token, taskId, attachmentId);
+    await deleteTaskAttachmentRequest(taskId, attachmentId);
   };
 
   const addDocument = async (doc: Omit<DocumentItem, "id" | "uploadedAt">) => {
     if (!session) throw new Error("Sessão indisponível");
-    await createDocumentRequest(session.token, doc);
-    await refreshState();
+    await createDocumentRequest(doc);
+    const documents = await fetchDocumentsRequest();
+    setState((current) => ({ ...current, documents }));
   };
 
   const updateDocumentMapping = async (id: string, mapping: Record<string, string>) => {
     if (!session) throw new Error("Sessão indisponível");
-    await updateDocumentRequest(session.token, id, { autoMappedFields: mapping });
-    await refreshState();
+    const updated = await updateDocumentRequest(id, { autoMappedFields: mapping });
+    setState((current) => ({
+      ...current,
+      documents: current.documents.map((item) => (item.id === id ? updated : item)),
+    }));
   };
 
   const value = useMemo(
@@ -195,8 +211,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toggleSmartScan: async () => {
         if (!session) throw new Error("Sessão indisponível");
 
-        await updateSettingsRequest(session.token, !state.settings.isSmartScanEnabled);
-        await refreshState();
+        try {
+          const settings = await updateSettingsRequest(!state.settings.isSmartScanEnabled);
+          setState((current) => ({ ...current, settings }));
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 403) {
+            throw new Error("Apenas administradores podem alterar as configurações do SmartScan.");
+          }
+          throw error;
+        }
       },
       addClient,
       updateClient,

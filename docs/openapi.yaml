@@ -1,0 +1,1119 @@
+openapi: 3.1.0
+info:
+  title: LegalHub API
+  description: |
+    API REST do LegalHub (gestão jurídica). Autenticação via JWT Bearer, exceto login.
+
+    Fonte de contratos: schemas Zod em `backend/src/modules/**/*.schemas.ts`.
+  version: 0.1.0
+  contact:
+    name: LegalHub
+
+servers:
+  - url: http://localhost:3001
+    description: Desenvolvimento local
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Clients
+  - name: Tasks
+  - name: TaskComments
+  - name: TaskAttachments
+  - name: Documents
+  - name: Settings
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: API disponível
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Sessão criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/session:
+    get:
+      tags: [Auth]
+      summary: Validar sessão atual
+      operationId: getSession
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sessão válida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Encerrar sessão
+      operationId: logout
+      security:
+        - bearerAuth: []
+      description: Revoga a sessão no servidor. Token opcional; retorna 204 mesmo sem token válido.
+      responses:
+        "204":
+          description: Sessão encerrada
+
+  /api/clients:
+    get:
+      tags: [Clients]
+      summary: Listar clientes
+      operationId: listClients
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de clientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Clients]
+      summary: Criar cliente
+      operationId: createClient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientRequest"
+      responses:
+        "201":
+          description: Cliente criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/clients/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Clients]
+      summary: Obter cliente por ID
+      operationId: getClient
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cliente encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Clients]
+      summary: Atualizar cliente
+      operationId: updateClient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClientRequest"
+      responses:
+        "200":
+          description: Cliente atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Clients]
+      summary: Excluir cliente
+      operationId: deleteClient
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Cliente excluído
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: Listar tarefas (prazos)
+      operationId: listTasks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de tarefas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Tasks]
+      summary: Criar tarefa
+      operationId: createTask
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "201":
+          description: Tarefa criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Tasks]
+      summary: Obter tarefa por ID
+      operationId: getTask
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Tarefa encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Tasks]
+      summary: Atualizar tarefa
+      operationId: updateTask
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: Tarefa atualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Tasks]
+      summary: Excluir tarefa
+      operationId: deleteTask
+      security:
+        - bearerAuth: []
+      description: Remove a tarefa e os arquivos de anexo associados no disco.
+      responses:
+        "204":
+          description: Tarefa excluída
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/tasks/{id}/detail:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Tasks]
+      summary: Detalhe da tarefa com cliente, comentários e anexos
+      operationId: getTaskDetail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Detalhe completo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/tasks/{id}/comments:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [TaskComments]
+      summary: Listar comentários da tarefa
+      operationId: listTaskComments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de comentários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskComment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [TaskComments]
+      summary: Criar comentário
+      operationId: createTaskComment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskCommentRequest"
+      responses:
+        "201":
+          description: Comentário criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskComment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/tasks/{id}/attachments:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [TaskAttachments]
+      summary: Listar metadados de anexos
+      operationId: listTaskAttachments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de anexos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskAttachment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [TaskAttachments]
+      summary: Enviar anexo
+      operationId: createTaskAttachment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Arquivo enviado (campo multipart padrão do Fastify)
+      responses:
+        "201":
+          description: Anexo salvo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAttachment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/tasks/{id}/attachments/{attachmentId}/download:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+      - $ref: "#/components/parameters/AttachmentId"
+    get:
+      tags: [TaskAttachments]
+      summary: Baixar anexo
+      operationId: downloadTaskAttachment
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stream do arquivo
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/tasks/{id}/attachments/{attachmentId}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+      - $ref: "#/components/parameters/AttachmentId"
+    delete:
+      tags: [TaskAttachments]
+      summary: Excluir anexo
+      operationId: deleteTaskAttachment
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Anexo excluído
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/documents:
+    get:
+      tags: [Documents]
+      summary: Listar documentos
+      operationId: listDocuments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de documentos (tags/variables como arrays JSON)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Documents]
+      summary: Criar documento (metadados)
+      operationId: createDocument
+      security:
+        - bearerAuth: []
+      description: Registra metadados de documento; não há upload de binário PDF neste endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentRequest"
+      responses:
+        "201":
+          description: Documento criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/documents/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Documents]
+      summary: Obter documento por ID
+      operationId: getDocument
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Documento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Documents]
+      summary: Atualizar documento
+      operationId: updateDocument
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDocumentRequest"
+      responses:
+        "200":
+          description: Documento atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Documents]
+      summary: Excluir documento
+      operationId: deleteDocument
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Documento excluído
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Obter configurações da aplicação
+      operationId: getSettings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Configurações
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      tags: [Settings]
+      summary: Atualizar configurações
+      operationId: updateSettings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          description: Configurações atualizadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token retornado por POST /api/auth/login
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    AttachmentId:
+      name: attachmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+
+  responses:
+    BadRequest:
+      description: Requisição inválida
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Não autorizado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Acesso negado (perfil insuficiente)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Conflito (ex. CPF/CNPJ duplicado)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalError:
+      description: Erro interno
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: Recurso não encontrado
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    User:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          description: Papel do usuário (ex. admin, member)
+
+    SessionResponse:
+      type: object
+      required: [token, expiresAt, user]
+      properties:
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: Data de expiração da sessão (ISO 8601)
+        user:
+          $ref: "#/components/schemas/User"
+
+    ClientStatus:
+      type: string
+      enum: [Ativo, "Em Prospecção", Inativo]
+
+    Client:
+      type: object
+      required:
+        - id
+        - name
+        - cnpj
+        - status
+        - responsible
+        - email
+        - phone
+        - address
+        - city
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        cnpj:
+          type: string
+          description: CPF ou CNPJ apenas dígitos (11 ou 14)
+        status:
+          $ref: "#/components/schemas/ClientStatus"
+        responsible:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        observations:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateClientRequest:
+      type: object
+      required:
+        - name
+        - cnpj
+        - status
+        - responsible
+        - email
+        - phone
+        - address
+        - city
+      properties:
+        name:
+          type: string
+          minLength: 3
+        cnpj:
+          type: string
+          description: Aceita máscara; normalizado para 11 ou 14 dígitos
+        status:
+          $ref: "#/components/schemas/ClientStatus"
+        responsible:
+          type: string
+          minLength: 3
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          minLength: 8
+        address:
+          type: string
+          minLength: 5
+        city:
+          type: string
+          minLength: 2
+        observations:
+          type: string
+
+    UpdateClientRequest:
+      type: object
+      description: Todos os campos opcionais (partial update)
+      properties:
+        name:
+          type: string
+          minLength: 3
+        cnpj:
+          type: string
+        status:
+          $ref: "#/components/schemas/ClientStatus"
+        responsible:
+          type: string
+          minLength: 3
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          minLength: 8
+        address:
+          type: string
+          minLength: 5
+        city:
+          type: string
+          minLength: 2
+        observations:
+          type: string
+
+    TaskStatus:
+      type: string
+      enum: [todo, drafting, review, done]
+
+    TaskPriority:
+      type: string
+      enum: [critical, high, normal]
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - clientId
+        - clientName
+        - dueDate
+        - status
+        - priority
+        - responsible
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        priority:
+          $ref: "#/components/schemas/TaskPriority"
+        responsible:
+          type: string
+        observations:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+        - clientId
+        - clientName
+        - dueDate
+        - status
+        - priority
+        - responsible
+      properties:
+        title:
+          type: string
+          minLength: 3
+        clientId:
+          type: string
+        clientName:
+          type: string
+          minLength: 3
+        dueDate:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        priority:
+          $ref: "#/components/schemas/TaskPriority"
+        responsible:
+          type: string
+          minLength: 2
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+        clientId:
+          type: string
+        clientName:
+          type: string
+          minLength: 3
+        dueDate:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        priority:
+          $ref: "#/components/schemas/TaskPriority"
+        responsible:
+          type: string
+          minLength: 2
+        observations:
+          type: ["string", "null"]
+
+    TaskDetailClient:
+      type: object
+      required: [id, name, cnpj, email, phone, status, responsible]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        cnpj:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        responsible:
+          type: string
+
+    TaskComment:
+      type: object
+      required: [id, taskId, userId, userName, body, createdAt]
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateTaskCommentRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+
+    TaskAttachment:
+      type: object
+      required: [id, taskId, originalName, mimeType, sizeBytes, createdAt]
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    TaskDetail:
+      allOf:
+        - $ref: "#/components/schemas/Task"
+        - type: object
+          required: [client, comments, attachments]
+          properties:
+            client:
+              $ref: "#/components/schemas/TaskDetailClient"
+            comments:
+              type: array
+              items:
+                $ref: "#/components/schemas/TaskComment"
+            attachments:
+              type: array
+              items:
+                $ref: "#/components/schemas/TaskAttachment"
+
+    Document:
+      type: object
+      required: [id, name, category, tags, variables, uploadedAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        variables:
+          type: array
+          items:
+            type: string
+        autoMappedFields:
+          type: object
+          additionalProperties:
+            type: string
+        clientId:
+          type: string
+        uploadedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateDocumentRequest:
+      type: object
+      required: [name, category, tags, variables]
+      properties:
+        name:
+          type: string
+          minLength: 3
+        category:
+          type: string
+          minLength: 3
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        variables:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        autoMappedFields:
+          type: object
+          additionalProperties:
+            type: string
+        clientId:
+          type: string
+
+    UpdateDocumentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+        category:
+          type: string
+          minLength: 3
+        tags:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        variables:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        autoMappedFields:
+          type: object
+          additionalProperties:
+            type: string
+        clientId:
+          type: ["string", "null"]
+
+    AppSettings:
+      type: object
+      required: [isSmartScanEnabled]
+      properties:
+        isSmartScanEnabled:
+          type: boolean
+
+    UpdateSettingsRequest:
+      type: object
+      required: [isSmartScanEnabled]
+      properties:
+        isSmartScanEnabled:
+          type: boolean
