@@ -169,7 +169,7 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex select-none flex-col gap-6">
       <div>
         <h2 className="text-2xl font-extrabold text-zinc-950">Quadro de Prazos</h2>
         <p className="text-sm text-zinc-500">
