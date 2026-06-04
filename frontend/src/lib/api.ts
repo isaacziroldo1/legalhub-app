@@ -1,4 +1,4 @@
-import type { AppSettings, AppState, Client, DocumentItem, Session, Task } from "@/types";
+import type { AppSettings, AppState, Client, DocumentItem, Session, Task, TaskAttachment, TaskComment, TaskDetail } from "@/types";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001/api").replace(/\/$/, "");
 
@@ -49,10 +49,37 @@ function normalizeDocument(document: DocumentItem & { autoMappedFields?: Record<
   };
 }
 
-function normalizeTask(task: Task & { completedAt?: string | null }) {
+function normalizeTask(task: Task & { completedAt?: string | null; observations?: string | null }) {
   return {
     ...task,
+    observations: task.observations ?? undefined,
     completedAt: task.completedAt ?? undefined,
+  };
+}
+
+function normalizeTaskDetail(
+  detail: TaskDetail & {
+    completedAt?: string | null;
+    observations?: string | null;
+    dueDate?: string | Date;
+    createdAt?: string | Date;
+  }
+) {
+  return {
+    ...normalizeTask({
+      ...detail,
+      dueDate: typeof detail.dueDate === "string" ? detail.dueDate : new Date(detail.dueDate as Date).toISOString(),
+      createdAt: typeof detail.createdAt === "string" ? detail.createdAt : new Date(detail.createdAt as Date).toISOString(),
+    }),
+    client: detail.client,
+    comments: detail.comments.map((comment) => ({
+      ...comment,
+      createdAt: typeof comment.createdAt === "string" ? comment.createdAt : new Date(comment.createdAt).toISOString(),
+    })),
+    attachments: detail.attachments.map((attachment) => ({
+      ...attachment,
+      createdAt: typeof attachment.createdAt === "string" ? attachment.createdAt : new Date(attachment.createdAt).toISOString(),
+    })),
   };
 }
 
@@ -117,6 +144,76 @@ export async function updateTaskRequest(token: string, id: string, patch: Partia
 
 export async function deleteTaskRequest(token: string, id: string) {
   return requestJson<void>(`/tasks/${id}`, { token, method: "DELETE" });
+}
+
+export async function fetchTaskDetailRequest(token: string, id: string) {
+  const detail = await requestJson<TaskDetail & { completedAt?: string | null; observations?: string | null }>(`/tasks/${id}/detail`, { token });
+  return normalizeTaskDetail(detail);
+}
+
+export async function updateTaskObservationsRequest(token: string, id: string, observations: string) {
+  const updatedTask = await requestJson<Task & { completedAt?: string | null; observations?: string | null }>(`/tasks/${id}`, {
+    token,
+    method: "PATCH",
+    body: { observations },
+  });
+  return normalizeTask(updatedTask);
+}
+
+export async function createTaskCommentRequest(token: string, taskId: string, body: string) {
+  const comment = await requestJson<TaskComment & { createdAt: string | Date }>(`/tasks/${taskId}/comments`, {
+    token,
+    method: "POST",
+    body: { body },
+  });
+  return {
+    ...comment,
+    createdAt: typeof comment.createdAt === "string" ? comment.createdAt : new Date(comment.createdAt).toISOString(),
+  };
+}
+
+export async function uploadTaskAttachmentRequest(token: string, taskId: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/attachments`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new ApiError(response.status, payload?.message ?? "Falha no upload do anexo");
+  }
+
+  const attachment = payload as TaskAttachment & { createdAt: string | Date };
+  return {
+    ...attachment,
+    createdAt: typeof attachment.createdAt === "string" ? attachment.createdAt : new Date(attachment.createdAt).toISOString(),
+  };
+}
+
+export async function downloadTaskAttachmentRequest(token: string, taskId: string, attachmentId: string) {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/attachments/${attachmentId}/download`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new ApiError(response.status, payload?.message ?? "Falha ao baixar anexo");
+  }
+
+  return response.blob();
+}
+
+export async function deleteTaskAttachmentRequest(token: string, taskId: string, attachmentId: string) {
+  return requestJson<void>(`/tasks/${taskId}/attachments/${attachmentId}`, { token, method: "DELETE" });
 }
 
 export async function createDocumentRequest(token: string, document: Omit<DocumentItem, "id" | "uploadedAt">) {

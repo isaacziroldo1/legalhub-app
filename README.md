@@ -73,6 +73,8 @@ Copie `backend/.env.example` para `backend/.env` e ajuste se necessário:
 | `JWT_SECRET` | Segredo para tokens — altere fora de desenvolvimento |
 | `SESSION_TTL_HOURS` | Duração da sessão em horas |
 | `CORS_ORIGIN` | Origem permitida do frontend (padrão: `http://localhost:3000`) |
+| `UPLOAD_DIR` | Pasta de anexos dos cards de prazo (padrão: `uploads`, relativa ao `backend/`) |
+| `MAX_UPLOAD_BYTES` | Tamanho máximo por anexo em bytes (padrão: 50MB) |
 
 Na **pasta raiz** do projeto, prepare o banco:
 

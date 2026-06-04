@@ -6,16 +6,21 @@ import { useAuth } from "@/auth/useAuth";
 import {
   createClientRequest,
   createDocumentRequest,
+  createTaskCommentRequest,
   createTaskRequest,
   deleteClientRequest,
   deleteDocumentRequest,
+  deleteTaskAttachmentRequest,
   deleteTaskRequest,
   loadAppStateRequest,
   updateClientRequest,
   updateDocumentRequest,
   updateSettingsRequest,
+  updateTaskObservationsRequest,
   updateTaskRequest,
+  uploadTaskAttachmentRequest,
 } from "@/lib/api";
+import type { TaskAttachment, TaskComment } from "@/types";
 
 const EMPTY_STATE: AppState = {
   clients: [],
@@ -50,6 +55,10 @@ interface AppContextType extends AppState {
   removeClient: (id: string) => Promise<void>;
   addTask: (task: Omit<Task, "id" | "createdAt" | "completedAt">) => Promise<void>;
   updateTaskStatus: (id: string, status: Task["status"]) => Promise<void>;
+  updateTaskObservations: (id: string, observations: string) => Promise<Task>;
+  addTaskComment: (taskId: string, body: string) => Promise<TaskComment>;
+  uploadTaskAttachment: (taskId: string, file: File) => Promise<TaskAttachment>;
+  removeTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
   addDocument: (doc: Omit<DocumentItem, "id" | "uploadedAt">) => Promise<void>;
   updateDocumentMapping: (id: string, mapping: Record<string, string>) => Promise<void>;
 }
@@ -157,6 +166,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateTaskObservations = async (id: string, observations: string) => {
+    if (!session) throw new Error("Sessão indisponível");
+
+    const updatedTask = await updateTaskObservationsRequest(session.token, id, observations);
+    setState((current) => ({
+      ...current,
+      tasks: replaceTaskById(current.tasks, updatedTask),
+    }));
+
+    return updatedTask;
+  };
+
+  const addTaskComment = async (taskId: string, body: string) => {
+    if (!session) throw new Error("Sessão indisponível");
+    return createTaskCommentRequest(session.token, taskId, body);
+  };
+
+  const uploadTaskAttachment = async (taskId: string, file: File) => {
+    if (!session) throw new Error("Sessão indisponível");
+    return uploadTaskAttachmentRequest(session.token, taskId, file);
+  };
+
+  const removeTaskAttachment = async (taskId: string, attachmentId: string) => {
+    if (!session) throw new Error("Sessão indisponível");
+    await deleteTaskAttachmentRequest(session.token, taskId, attachmentId);
+  };
+
   const addDocument = async (doc: Omit<DocumentItem, "id" | "uploadedAt">) => {
     if (!session) throw new Error("Sessão indisponível");
     await createDocumentRequest(session.token, doc);
@@ -184,6 +220,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removeClient,
       addTask,
       updateTaskStatus,
+      updateTaskObservations,
+      addTaskComment,
+      uploadTaskAttachment,
+      removeTaskAttachment,
       addDocument,
       updateDocumentMapping,
     }),

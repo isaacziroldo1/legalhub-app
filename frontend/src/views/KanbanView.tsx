@@ -1,6 +1,8 @@
 "use client";
 
+import { GripVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { TaskDetailModal } from "@/components/TaskDetailModal";
 import { useApp } from "@/context/AppContext";
 import type { Task, TaskStatus } from "@/types";
 
@@ -30,6 +32,8 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
   const updatingTaskIdsRef = useRef(new Set<string>());
   const [pendingTaskMoves, setPendingTaskMoves] = useState(0);
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const openedHighlightRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (tasks.length > 0) {
@@ -92,8 +96,18 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
       document.getElementById(`task-${highlightTaskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
 
+    if (openedHighlightRef.current !== highlightTaskId) {
+      openedHighlightRef.current = highlightTaskId;
+      setSelectedTaskId(highlightTaskId);
+    }
+
     return () => cancelAnimationFrame(frame);
   }, [highlightTaskId, scopedTasks]);
+
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? scopedTasks.find((task) => task.id === selectedTaskId) : undefined),
+    [scopedTasks, selectedTaskId]
+  );
 
   const handleDragStart = (event: DragEvent<HTMLDivElement>, task: Task) => {
     setDraggedTask({ id: task.id, status: task.status });
@@ -156,6 +170,16 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          initialTask={selectedTask}
+          onClose={() => {
+            setSelectedTaskId(null);
+            openedHighlightRef.current = null;
+          }}
+        />
+      )}
       <div>
         <h2 className="text-2xl font-extrabold text-zinc-950">Quadro de Prazos</h2>
         <p className="text-sm text-zinc-500">
@@ -188,32 +212,63 @@ export function KanbanView({ clientId, highlightTaskId }: Props) {
                   <div
                     key={task.id}
                     id={`task-${task.id}`}
-                    aria-grabbed={isDragging}
                     data-task-id={task.id}
-                    draggable={!isUpdating}
-                    onDragStart={(event) => handleDragStart(event, task)}
-                    onDragEnd={() => {
-                      setDraggedTask(null);
-                      setDragOverStatus(null);
-                    }}
-                    className={`flex cursor-grab flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition active:cursor-grabbing ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging || isUpdating ? "opacity-50" : ""}`}
+                    className={`flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm transition hover:border-orange-200 hover:shadow-md ${highlightTaskId === task.id ? "ring-2 ring-orange-400" : ""} ${isDragging || isUpdating ? "opacity-50" : ""}`}
                   >
-                    <span className="text-xs font-bold leading-tight text-zinc-900">{task.title}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs">👤</span>
-                      <span className="text-xs font-bold text-orange-500">{task.clientName}</span>
+                    <div className="flex items-start gap-2">
+                      <div
+                        aria-grabbed={isDragging}
+                        draggable={!isUpdating}
+                        onDragStart={(event) => handleDragStart(event, task)}
+                        onDragEnd={() => {
+                          setDraggedTask(null);
+                          setDragOverStatus(null);
+                        }}
+                        className="mt-0.5 flex cursor-grab items-center rounded p-0.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 active:cursor-grabbing"
+                        aria-label={`Arrastar prazo ${task.title}`}
+                        title="Arrastar para outra coluna"
+                      >
+                        <GripVertical size={14} />
+                      </div>
+                      <div
+                        className="flex min-w-0 flex-1 cursor-pointer flex-col gap-3"
+                        onDoubleClick={() => setSelectedTaskId(task.id)}
+                        title="Duplo clique para abrir detalhes"
+                      >
+                        <span className="text-xs font-bold leading-tight text-zinc-900">{task.title}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs">👤</span>
+                          <span className="text-xs font-bold text-orange-500">{task.clientName}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-[10px] font-bold ${urgencyClass(task.dueDate)}`}>
+                            <span>📅</span> {formatDeadline(task.dueDate)}
+                          </span>
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">{task.responsible}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-[10px] font-bold ${urgencyClass(task.dueDate)}`}>
-                        <span>📅</span> {formatDeadline(task.dueDate)}
-                      </span>
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">{task.responsible}</div>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <button disabled={isUpdating} onClick={() => void moveTaskToStatus(task, getPreviousStatus(task.status))} className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50">
+                    <div className="flex items-center justify-between gap-2 border-t border-zinc-100 pt-2">
+                      <button
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void moveTaskToStatus(task, getPreviousStatus(task.status));
+                        }}
+                        className="text-[10px] font-bold text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
                         Voltar
                       </button>
-                      <button disabled={isUpdating} onClick={() => void moveTaskToStatus(task, getNextStatus(task.status))} className="text-[10px] font-bold text-orange-500 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50">
+                      <button
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void moveTaskToStatus(task, getNextStatus(task.status));
+                        }}
+                        className="text-[10px] font-bold text-orange-500 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
                         Avançar
                       </button>
                     </div>
